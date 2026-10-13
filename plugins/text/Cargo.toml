@@ -1,0 +1,10 @@
+[package]
+name = "vw-plugin-text"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw 内置插件：纯文本与代码"
+
+[dependencies]
+vw-protocol = { workspace = true }
+vw-core = { workspace = true }

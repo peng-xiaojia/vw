@@ -1,0 +1,15 @@
+[package]
+name = "vw-example-sidecar"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw 最小 sidecar 示例插件（stdio JSON-RPC）"
+
+[[bin]]
+name = "vw-example-sidecar"
+path = "src/main.rs"
+
+[dependencies]
+vw-protocol = { workspace = true }
+vw-plugin-sdk = { workspace = true }
+vw-plugin-text = { workspace = true }

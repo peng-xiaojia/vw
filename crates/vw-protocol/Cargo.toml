@@ -1,0 +1,10 @@
+[package]
+name = "vw-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw 文件查看器：IR 与 RPC 消息的共享定义（core 与插件 SDK 共用）"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

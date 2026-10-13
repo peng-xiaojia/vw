@@ -1,0 +1,11 @@
+[package]
+name = "vw-plugin-markdown"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw 内置插件：Markdown"
+
+[dependencies]
+vw-protocol = { workspace = true }
+vw-core = { workspace = true }
+pulldown-cmark = { workspace = true }

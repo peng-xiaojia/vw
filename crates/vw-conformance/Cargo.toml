@@ -1,0 +1,11 @@
+[package]
+name = "vw-conformance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw conformance 一致性套件：驱动两种 transport 输出一致"
+
+[dependencies]
+serde_json = { workspace = true }
+vw-protocol = { workspace = true }
+vw-core = { workspace = true }

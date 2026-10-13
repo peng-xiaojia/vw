@@ -1,0 +1,13 @@
+[package]
+name = "vw-plugin-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw sidecar 进程管理、stdio JSON-RPC 消息编解码"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+vw-protocol = { workspace = true }
+vw-core = { workspace = true }

@@ -1,0 +1,11 @@
+[package]
+name = "vw-plugin-json"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw 内置插件：JSON / JSONL"
+
+[dependencies]
+vw-protocol = { workspace = true }
+vw-core = { workspace = true }
+serde_json = { workspace = true }

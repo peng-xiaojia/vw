@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/vw-protocol",
+    "crates/vw-core",
+    "crates/vw-plugin-host",
+    "crates/vw-plugin-sdk",
+    "crates/vw-conformance",
+    "crates/vw-cli",
+    "plugins/text",
+    "plugins/markdown",
+    "plugins/json",
+    "plugins/csv",
+    "plugins/hex",
+    "plugins/example-sidecar",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+blake3 = "1"
+clap = { version = "4", features = ["derive"] }
+csv = "1"
+pulldown-cmark = { version = "0.10", default-features = false }
+vw-protocol = { path = "crates/vw-protocol" }
+vw-core = { path = "crates/vw-core" }
+vw-plugin-host = { path = "crates/vw-plugin-host" }
+vw-plugin-sdk = { path = "crates/vw-plugin-sdk" }
+vw-conformance = { path = "crates/vw-conformance" }
+vw-plugin-text = { path = "plugins/text" }

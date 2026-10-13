@@ -16,10 +16,11 @@ pub enum Align {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Inline {
     Text { text: String },
-    Bold { inner: Box<Inline> },
-    Italic { inner: Box<Inline> },
-    Code { inner: Box<Inline> },
-    Link { text: Box<Inline>, href: String },
+    Bold { inner: Vec<Inline> },
+    Italic { inner: Vec<Inline> },
+    /// 行内代码：内容是纯文本，不再嵌套。
+    Code { text: String },
+    Link { text: Vec<Inline>, href: String },
     Break,
 }
 
@@ -36,8 +37,9 @@ pub enum DrawOp {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Block {
-    Heading { level: u8, text: Inline },
-    Para { text: Inline },
+    /// 行内元素序列：真实段落是「文本+粗体+代码」的混合 run。
+    Heading { level: u8, text: Vec<Inline> },
+    Para { text: Vec<Inline> },
     List { ordered: bool, items: Vec<Block> },
     Table { head: Option<Vec<Inline>>, rows: Vec<Vec<Inline>>, align: Vec<Align> },
     Code { lang: Option<String>, text: String },
@@ -61,11 +63,15 @@ impl Inline {
 
 impl Block {
     pub fn para(s: impl Into<String>) -> Block {
-        Block::Para { text: Inline::text(s) }
+        Block::Para { text: vec![Inline::text(s)] }
+    }
+
+    pub fn para_runs(v: Vec<Inline>) -> Block {
+        Block::Para { text: v }
     }
 
     pub fn heading(level: u8, s: impl Into<String>) -> Block {
-        Block::Heading { level, text: Inline::text(s) }
+        Block::Heading { level, text: vec![Inline::text(s)] }
     }
 
     pub fn preformatted(s: impl Into<String>) -> Block {

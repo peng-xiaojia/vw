@@ -6,7 +6,11 @@ use vw_protocol::{
 fn ir_serde_round_trip() {
     let blocks = vec![
         Block::heading(1, "标题"),
-        Block::Para { text: Inline::Bold { inner: Box::new(Inline::text("粗体")) } },
+        Block::para_runs(vec![
+            Inline::text("普通"),
+            Inline::Bold { inner: vec![Inline::text("粗体")] },
+            Inline::Code { text: "code".into() },
+        ]),
         Block::Table {
             head: Some(vec![Inline::text("a"), Inline::text("b")]),
             rows: vec![vec![Inline::text("1"), Inline::text("2")]],
@@ -38,7 +42,7 @@ fn unknown_block_kind_degrades_to_error() {
 #[test]
 fn unknown_block_kind_inside_list_does_not_fail_whole_list() {
     let v: serde_json::Value = serde_json::from_str(
-        r#"{"blocks":[{"kind":"para","text":{"kind":"text","text":"ok"}},{"kind":"fancy"}],"total":2}"#,
+        r#"{"blocks":[{"kind":"para","text":[{"kind":"text","text":"ok"}]},{"kind":"fancy"}],"total":2}"#,
     )
     .unwrap();
     let list = vw_protocol::block_list_from_value(&v);

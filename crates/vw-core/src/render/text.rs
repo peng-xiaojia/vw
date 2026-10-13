@@ -1,9 +1,13 @@
 //! IR → 纯文本（CLI 默认输出）。这是最弱的渲染器：任何块都必须有合理降级。
 
-use vw_protocol::{inline_text, Align, Block, DocMeta, Inline};
+use vw_protocol::{inline_text, run_text, Align, Block, DocMeta, Inline};
 
 pub fn inline_str(i: &Inline) -> String {
     inline_text(i)
+}
+
+pub fn runs_str(v: &[Inline]) -> String {
+    run_text(v)
 }
 
 pub fn render_blocks(blocks: &[Block]) -> String {
@@ -39,12 +43,12 @@ fn render_block(b: &Block, depth: usize, out: &mut String) {
                 out.push('#');
             }
             out.push(' ');
-            out.push_str(&inline_str(text));
+            out.push_str(&runs_str(text));
             out.push('\n');
         }
         Block::Para { text } => {
             out.push_str(&pad);
-            out.push_str(&inline_str(text));
+            out.push_str(&runs_str(text));
             out.push('\n');
         }
         Block::List { ordered, items } => {
@@ -54,7 +58,7 @@ fn render_block(b: &Block, depth: usize, out: &mut String) {
                     Block::Para { text } => {
                         out.push_str(&pad);
                         out.push_str(&marker);
-                        out.push_str(&inline_str(text));
+                        out.push_str(&runs_str(text));
                         out.push('\n');
                     }
                     Block::List { .. } => render_block(item, depth + 1, out),

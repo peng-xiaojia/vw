@@ -19,7 +19,7 @@ pub use error::{ErrorKind, PluginError};
 pub use ir::{Align, Block, DrawOp, Inline, block_from_value, block_list_from_value};
 pub use manifest::{Contributes, EnginesSection, Manifest, ProtocolSection, Transport, TransportKind, ViewerDecl};
 pub use rpc::{Request, Response};
-pub use search::{block_text, inline_text, search_blocks};
+pub use search::{block_text, inline_text, run_text, search_blocks};
 pub use source::Source;
 pub use types::{
     BlockList, Cursor, DocMeta, OpenOptions, Outline, OutlineItem, PageRange, ProbeScore, SearchHit, SearchHits,

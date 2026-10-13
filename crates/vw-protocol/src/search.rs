@@ -9,11 +9,17 @@ pub const MAX_HITS: usize = 50;
 
 const EXCERPT_CTX: usize = 24;
 
+/// 行内元素序列的纯文本。
+pub fn run_text(v: &[Inline]) -> String {
+    v.iter().map(inline_text).collect()
+}
+
 pub fn inline_text(i: &Inline) -> String {
     match i {
         Inline::Text { text } => text.clone(),
-        Inline::Bold { inner } | Inline::Italic { inner } | Inline::Code { inner } => inline_text(inner),
-        Inline::Link { text, .. } => inline_text(text),
+        Inline::Bold { inner } | Inline::Italic { inner } => run_text(inner),
+        Inline::Code { text } => text.clone(),
+        Inline::Link { text, .. } => run_text(text),
         Inline::Break => "\n".into(),
     }
 }
@@ -21,7 +27,7 @@ pub fn inline_text(i: &Inline) -> String {
 /// 块的可搜索文本。`PageBreak` / `Canvas` 无文本。
 pub fn block_text(b: &Block) -> Option<String> {
     match b {
-        Block::Heading { text, .. } | Block::Para { text } => Some(inline_text(text)),
+        Block::Heading { text, .. } | Block::Para { text } => Some(run_text(text)),
         Block::List { items, .. } => Some(
             items
                 .iter()

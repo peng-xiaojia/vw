@@ -8,4 +8,5 @@ description = "vw 插件作者使用的 Rust SDK（实现 sidecar 服务端）"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+uuid = { workspace = true }
 vw-protocol = { workspace = true }

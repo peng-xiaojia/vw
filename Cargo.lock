@@ -499,6 +499,7 @@ dependencies = [
  "serde_json",
  "uuid",
  "vw-core",
+ "vw-plugin-sdk",
  "vw-protocol",
 ]
 
@@ -526,6 +527,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "uuid",
  "vw-protocol",
 ]
 

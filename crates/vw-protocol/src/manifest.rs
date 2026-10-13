@@ -95,6 +95,55 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    /// 测试与内置插件用的最小 in-process manifest 构造器。
+    pub fn simple_in_process(
+        plugin_id: &str,
+        viewer_id: &str,
+        extensions: &[&str],
+        capabilities: &[&str],
+        priority: i64,
+    ) -> Manifest {
+        serde_json::from_value(serde_json::json!({
+            "manifest_version": 1,
+            "id": plugin_id,
+            "name": plugin_id,
+            "version": "0.1.0",
+            "transport": { "kind": "in-process" },
+            "contributes": { "viewers": [ {
+                "id": viewer_id,
+                "extensions": extensions,
+                "capabilities": capabilities,
+            } ] },
+            "priority": priority,
+        }))
+        .expect("内置 manifest 构造错误")
+    }
+
+    /// 测试与目录式安装用的最小 stdio manifest 构造器。
+    pub fn simple_stdio(
+        plugin_id: &str,
+        viewer_id: &str,
+        extensions: &[&str],
+        capabilities: &[&str],
+        priority: i64,
+        executable: &str,
+    ) -> Manifest {
+        serde_json::from_value(serde_json::json!({
+            "manifest_version": 1,
+            "id": plugin_id,
+            "name": plugin_id,
+            "version": "0.1.0",
+            "transport": { "kind": "stdio-jsonrpc", "framing": "jsonl", "executable": executable },
+            "contributes": { "viewers": [ {
+                "id": viewer_id,
+                "extensions": extensions,
+                "capabilities": capabilities,
+            } ] },
+            "priority": priority,
+        }))
+        .expect("内置 manifest 构造错误")
+    }
+
     /// 某个 viewer 声明的能力（"view" / "edit"）。
     pub fn capabilities_of(&self, viewer_id: &str) -> Vec<String> {
         self.contributes

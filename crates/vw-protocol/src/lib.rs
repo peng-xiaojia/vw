@@ -14,7 +14,7 @@ pub mod source;
 pub mod types;
 
 pub use blob::BlobRef;
-pub use edit::{EditCapability, EditSnapshot, LineEnding};
+pub use edit::{EditCapability, EditSnapshot, LineEnding, TextFile};
 pub use error::{ErrorKind, PluginError};
 pub use ir::{Align, Block, DrawOp, Inline, block_from_value, block_list_from_value};
 pub use manifest::{Contributes, EnginesSection, Manifest, ProtocolSection, Transport, TransportKind, ViewerDecl};

@@ -10,3 +10,11 @@ name = "vw-mcp"
 path = "src/main.rs"
 
 [dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+vw-protocol = { workspace = true }
+vw-core = { workspace = true }
+vw-std = { workspace = true }
+
+[dev-dependencies]
+vw-plugin-text = { workspace = true }

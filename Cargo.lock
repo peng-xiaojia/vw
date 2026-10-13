@@ -612,6 +612,14 @@ dependencies = [
 [[package]]
 name = "vw-mcp"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "vw-core",
+ "vw-plugin-text",
+ "vw-protocol",
+ "vw-std",
+]
 
 [[package]]
 name = "vw-plugin-archive"

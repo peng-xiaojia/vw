@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 版本 | v1.1 |
+| 版本 | v1.2 |
 | 日期 | 2026-10-13 |
 | 状态 | 已通过设计评审，待用户确认规格 |
 | 代号 | vw（临时代号，可随时更名） |
@@ -219,8 +219,9 @@ pub enum Source {
 
 ```rust
 pub enum Block {
-    Heading { level: u8, text: Inline },
-    Para(Inline),
+    /// 行内元素序列：真实段落是「文本+粗体+代码」的混合 run
+    Heading { level: u8, text: Vec<Inline> },
+    Para { text: Vec<Inline> },
     List { ordered: bool, items: Vec<Block> },
     Table { head: Option<Vec<Inline>>, rows: Vec<Vec<Inline>>, align: Vec<Align> },
     Code { lang: Option<String>, text: String },
@@ -228,20 +229,22 @@ pub enum Block {
     Quote(Vec<Block>),
     Image { blob: BlobId, alt: String, w: Option<u32>, h: Option<u32> },
     PageBreak,
-    /// 受控的矢量绘图（暂缓引入，见下方说明）
+    /// 受控的矢量绘图（暂缓引入；PDF 走光栅化优先，见 §13）
     Canvas { w: u32, h: u32, ops: Vec<DrawOp> },
     /// 逃生舱：插件不想建结构时原样输出
     Preformatted { text: String },
-    /// 局部失败，不炸整篇文档
+    /// 局部失败，不炸整篇文档；未知块类型反序列化时也落到这里
     Error { message: String },
 }
 
 pub enum Inline {
     Text(String),
-    Bold(Box<Inline>),
-    Italic(Box<Inline>),
-    Code(Box<Inline>),
-    Link { text: Box<Inline>, href: String },
+    /// 样式容器持有行内元素序列（v1.2：单 Box<Inline> 无法表达混合 run）
+    Bold(Vec<Inline>),
+    Italic(Vec<Inline>),
+    /// 行内代码内容是纯文本，不再嵌套
+    Code(String),
+    Link { text: Vec<Inline>, href: String },
     Break,
 }
 ```
@@ -348,7 +351,7 @@ pub enum EditSnapshot {
 **保存管线（核心实现）：**
 
 1. 用户触发保存 → 核心调 `serialize(edited)` 取得新字节。插件可在此校验并拒绝。
-2. **冲突检测**：比对打开时记录的 `(mtime, size, hash)` 与当前磁盘状态，不一致即拒绝保存并提示文件已被外部修改。基线哈希用 BLAKE3，在 open 后由后台线程计算，不阻塞首屏；保存时若尚未就绪则等待其完成（可编辑文件受 `max_bytes` 约束，等待量级可控）。
+2. **冲突检测**：比对打开时记录的 `(mtime, size, hash)` 与当前磁盘状态，不一致即拒绝保存并提示文件已被外部修改。基线哈希用 BLAKE3，在 open 后由后台线程以**稳定快照**方式计算（哈希前后两次 fingerprint 一致才采纳，防止把「打开瞬间」的外部篡改误当基线）；对 ≤4 MB 的小文件，open 返回前等待基线就绪以确定性排除竞态，大文件不阻塞首屏、保存时若尚未就绪则等待其完成（可编辑文件受 `max_bytes` 约束，等待量级可控）。
 3. **原子写**：写入同目录临时文件 → `fsync` → 原子重命名覆盖，避免中途失败损坏原文件。
 4. **备份**：按配置保留一份 `.bak`，或写入带时间戳的备份。
 5. 更新会话基线哈希，清除 dirty 标记。
@@ -503,6 +506,8 @@ vw plugin remove io.example.pdf
 ```rust
 pub enum ErrorKind {
     NoViewer,
+    /// 多个插件打分与优先级并列，需要用户 `--as` 仲裁（§7.2，v1.2 补入）
+    AmbiguousViewer,
     PluginCrashed,
     Timeout,
     Cancelled,
@@ -670,5 +675,6 @@ dbx 是**参考实现**，不是 fork、不是依赖、不是上游。**完整�
 
 | 版本 | 日期 | 说明 |
 | --- | --- | --- |
+| v1.2 | 2026-10-13 | 按 P1 实现反馈修订：IR 段落/标题文本改为行内元素序列、行内 Code 纯文本化（实现 markdown 时暴露的单 Inline 缺口）；ErrorKind 新增 AmbiguousViewer（§7.2 仲裁并列）；保存基线改为稳定快照算法（双 fingerprint 校验 + 小文件 open 前等待就绪），修复基线哈希竞态 |
 | v1.1 | 2026-10-13 | 按评审意见修订：新增会话临时目录与 blob 路径校验（4.2/5.1/5.3/10/12）；IR 未知块前向兼容降级（5.2/12）；消息尺寸上限与超限走 blob 通道（5.3）；编辑逐文件降级要求（5.4/12）；归档成员打开机制与 zip 炸弹总解压上限（5.1/12）；Canvas 暂缓、PDF 光栅化优先（5.2/13）；保存基线哈希后台计算（5.4）；发布资产按平台拆分、脚手架内置 release CI 模板（8/13）；新增诊断与日志（9）；修复 §13 分期表格断裂；in-process transport 明确真实序列化（4.2/12）；协议示例补充 tmp_dir 与在途取消；术语表新增「会话临时目录」 |
 | v1.0 | 2026-10-13 | 初版（通过设计评审） |

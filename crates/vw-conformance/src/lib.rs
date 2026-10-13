@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 
 use vw_core::OpenedDoc;
-use vw_protocol::{EditCapability, ErrorKind, LineEnding, OpenOptions, PluginError, Source};
+use vw_protocol::{EditCapability, ErrorKind, LineEnding, PluginError};
 
 /// 打开文件的入口：由被测后端提供。
 pub type OpenFn<'a> = dyn Fn(&Path) -> Result<OpenedDoc, PluginError> + 'a;

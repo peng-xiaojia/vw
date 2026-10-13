@@ -20,3 +20,7 @@ vw-plugin-markdown = { path = "../../plugins/markdown" }
 vw-plugin-json = { path = "../../plugins/json" }
 vw-plugin-csv = { path = "../../plugins/csv" }
 vw-plugin-hex = { path = "../../plugins/hex" }
+ureq = { workspace = true }
+zip = { workspace = true }
+sha2 = { workspace = true }
+vw-std = { workspace = true }

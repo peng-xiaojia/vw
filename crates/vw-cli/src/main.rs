@@ -6,17 +6,15 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
+use vw_cli::plugin_cmd;
+
 use vw_core::render::json::render_json;
 use vw_core::render::text::{render_blocks, render_document};
 use vw_core::registry::viewer_id_of;
-use vw_core::{Registry, Session};
-use vw_plugin_csv::CsvViewer;
-use vw_plugin_hex::HexViewer;
-use vw_plugin_host::{HostConfig, HostViewer};
-use vw_plugin_json::JsonViewer;
-use vw_plugin_markdown::MarkdownViewer;
-use vw_plugin_text::TextViewer;
-use vw_protocol::{ErrorKind, Manifest, OpenOptions, PluginError, Source, TransportKind};
+use vw_core::Session;
+use vw_plugin_host::HostViewer;
+use vw_protocol::{ErrorKind, OpenOptions, PluginError, Source};
+use vw_std::default_registry;
 
 #[derive(Parser)]
 #[command(name = "vw", version, about = "vw —— 插件化文件查看器（CLI）")]
@@ -37,6 +35,9 @@ enum Cmd {
         /// 指定 viewer id，绕过探测仲裁
         #[arg(long = "as", value_name = "VIEWER")]
         as_viewer: Option<String>,
+        /// 归档成员路径：把 <path> 当作归档（zip）打开该成员（§5.1）
+        #[arg(long = "inner", value_name = "MEMBER")]
+        inner: Option<String>,
         /// 起始块（0 起）
         #[arg(long, default_value_t = 0)]
         from: u64,
@@ -67,80 +68,32 @@ enum Cmd {
     },
     /// 诊断：外部插件进程状态与 stderr 尾部（§9）
     Doctor,
+    /// 插件分发（§8）：add / remove / list / new
+    Plugin {
+        #[command(subcommand)]
+        action: PluginAction,
+    },
 }
 
-/// 组装注册表：五个内置插件 + `VW_PLUGIN_DIR` 下的外部 sidecar。
-fn build_registry() -> Result<(Registry, Vec<Arc<HostViewer>>), PluginError> {
-    let mut reg = Registry::new();
-    reg.register(Arc::new(TextViewer::new(&["txt", "ini", "toml", "cfg"], 50)));
-    reg.register(Arc::new(MarkdownViewer::new(&["md", "markdown"], 50)));
-    reg.register(Arc::new(JsonViewer::new(&["json", "jsonl"], 50)));
-    reg.register(Arc::new(CsvViewer::new(&["csv", "tsv"], 50)));
-    reg.register(Arc::new(HexViewer::new(0)));
-
-    let mut hosts = Vec::new();
-    let dir = std::env::var("VW_PLUGIN_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| dirs_plugin_root().join("plugins"));
-    if let Ok(entries) = std::fs::read_dir(&dir) {
-        for entry in entries.flatten() {
-            let manifest_path = entry.path().join("manifest.json");
-            let Ok(raw) = std::fs::read_to_string(&manifest_path) else { continue };
-            let manifest: Manifest = match serde_json::from_str(&raw) {
-                Ok(m) => m,
-                Err(e) => {
-                    eprintln!("warn: 跳过 {}：manifest 解析失败：{e}", entry.path().display());
-                    continue;
-                }
-            };
-            if let Err(e) = manifest.validate() {
-                eprintln!("warn: 跳过 {}：{e}", entry.path().display());
-                continue;
-            }
-            if manifest.transport.kind != TransportKind::StdioJsonrpc {
-                continue;
-            }
-            let mut m2 = manifest.clone();
-            // 相对 executable 以插件目录为基准解析（不含占位符时）
-            if let Some(exe) = &m2.transport.executable {
-                if !exe.contains("{platform}") {
-                    let p = PathBuf::from(exe);
-                    if p.is_relative() {
-                        m2.transport.executable =
-                            Some(entry.path().join(p).to_string_lossy().to_string());
-                    }
-                }
-            }
-            match HostViewer::from_manifest(m2, HostConfig::default()) {
-                Ok(h) => {
-                    let arc = Arc::new(h);
-                    reg.register(arc.clone());
-                    hosts.push(arc);
-                }
-                Err(e) => eprintln!("warn: 插件 {} 不可用：{e}", manifest.id),
-            }
-        }
-    }
-    Ok((reg, hosts))
+#[derive(Subcommand)]
+enum PluginAction {
+    /// 从 GitHub Releases 安装：github:owner/repo[@tag]
+    Add {
+        spec: String,
+        /// 跳过 sha256 校验（不建议）
+        #[arg(long)]
+        insecure: bool,
+    },
+    /// 卸载插件
+    Remove { id: String },
+    /// 列出已安装的外部插件
+    List,
+    /// 生成插件脚手架（含多平台 release CI 模板）
+    New { name: String },
 }
 
-fn dirs_plugin_root() -> PathBuf {
-    if let Ok(d) = std::env::var("VW_HOME") {
-        return PathBuf::from(d);
-    }
-    if let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) {
-        let mut p = PathBuf::from(home);
-        if cfg!(windows) {
-            p.push("AppData");
-            p.push("Roaming");
-        } else {
-            p.push(".local");
-            p.push("share");
-        }
-        p.push("vw");
-        return p;
-    }
-    PathBuf::from(".vw")
+fn build_registry() -> Result<(vw_core::Registry, Vec<Arc<HostViewer>>), PluginError> {
+    default_registry()
 }
 
 fn err_exit_code(e: &PluginError) -> ExitCode {
@@ -161,12 +114,22 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<(), PluginError> {
     match cli.cmd {
-        Cmd::View { path, json, raw, as_viewer, from: _from, count } => {
+        Cmd::View { path, json, raw, as_viewer, inner, from: _from, count } => {
             let (reg, hosts) = build_registry()?;
             let _keep_alive = hosts;
             let session = Session::new(Arc::new(reg));
             let opts = OpenOptions { as_viewer, ..Default::default() };
-            let doc = session.open(Source::path(&path), opts)?;
+            let doc = match &inner {
+                Some(member) => session.open_member(&path, member, opts)?,
+                None => {
+                    let src = if path.is_dir() {
+                        Source::Dir { path: path.clone() }
+                    } else {
+                        Source::path(&path)
+                    };
+                    session.open(src, opts)?
+                }
+            };
             let max_blocks = if count == 0 { 100_000 } else { count as usize };
             let all = doc.page_all(max_blocks)?;
             let shown = all.blocks.len();
@@ -281,5 +244,39 @@ fn run(cli: Cli) -> Result<(), PluginError> {
             }
             Ok(())
         }
+        Cmd::Plugin { action } => match action {
+            PluginAction::Add { spec, insecure } => {
+                let dir = vw_std::plugins_dir();
+                let id = plugin_cmd::plugin_add(&spec, &dir, insecure)?;
+                println!("已安装：{id}");
+                Ok(())
+            }
+            PluginAction::Remove { id } => {
+                let dir = vw_std::plugins_dir().join(&id);
+                if dir.is_dir() {
+                    std::fs::remove_dir_all(&dir)
+                        .map_err(|e| PluginError::internal(format!("删除失败：{e}")))?;
+                    println!("已卸载：{id}");
+                } else {
+                    return Err(PluginError::malformed(format!("未安装插件：{id}")));
+                }
+                Ok(())
+            }
+            PluginAction::List => {
+                let rows = plugin_cmd::plugin_list(&vw_std::plugins_dir());
+                if rows.is_empty() {
+                    println!("（插件目录为空）");
+                }
+                for (id, ver, dir) in rows {
+                    println!("{:<24} {:<8} {}", id, ver, dir.display());
+                }
+                Ok(())
+            }
+            PluginAction::New { name } => {
+                let dir = plugin_cmd::plugin_new(&name, &std::env::current_dir().unwrap_or_default())?;
+                println!("已生成 {}（构建通过后打 tag v0.1.0 即发布）", dir.display());
+                Ok(())
+            }
+        },
     }
 }

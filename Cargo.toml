@@ -35,7 +35,7 @@ clap = { version = "4", features = ["derive"] }
 csv = "1"
 pulldown-cmark = { version = "0.10", default-features = false }
 zip = { version = "2", default-features = false, features = ["deflate"] }
-ureq = { version = "2", default-features = false, features = ["tls", "gzip"] }
+ureq = { version = "2", default-features = false, features = ["native-tls", "gzip"] }
 sha2 = "0.10"
 rusqlite = { version = "0.32", features = ["bundled"] }
 vw-protocol = { path = "crates/vw-protocol" }

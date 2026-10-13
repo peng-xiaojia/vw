@@ -5,7 +5,7 @@
 | 日期 | 2026-10-13 |
 | 状态 | 已通过设计评审，待用户确认规格 |
 | 代号 | vw（临时代号，可随时更名） |
-| 参考项目 | [t8y2/dbx](https://github.com/t8y2/dbx)（仅作参考实现，不 fork） |
+| 参考项目 | [t8y2/dbx](https://github.com/t8y2/dbx) `051cab8`（仅作参考实现，不 fork，详见 [使用方式](../../reference/dbx-as-reference.md)） |
 
 ---
 
@@ -89,7 +89,7 @@
 | 插件宿主：manifest schema、签名校验、sidecar 生命周期、stdio JSON-RPC framing、权限声明 | 精读后重写 | 设计思想值得借鉴，实现与数据库概念深度耦合 |
 | 踩坑经验 | 直接吸收 | 例如「DuckDB 编译慢，本地开发跳过」「Windows 便携版需整体搬迁 data 目录」 |
 
-移植代码需遵守 Apache-2.0：保留 LICENSE 与 NOTICE，并标注修改过的文件。
+移植代码需遵守 Apache-2.0：保留 LICENSE 与 NOTICE，并标注修改过的文件。**完整的使用方式——分阶段精读清单、移植判据、合规流程、版本锚定与红线——见 [以 dbx 作为参考实现的使用方式](../../reference/dbx-as-reference.md)。**
 
 ### 3.2 被否决的技术方案
 
@@ -611,17 +611,11 @@ plugins/archive   内置插件：归档列表与成员预览（P2）
 
 ---
 
-## 15. 参考实现：dbx 精读清单
+## 15. 参考实现：dbx
 
-不 fork，但值得精读以下五处（Apache-2.0）：
+dbx 是**参考实现**，不是 fork、不是依赖、不是上游。**完整的使用方式见 [以 dbx 作为参考实现的使用方式](../../reference/dbx-as-reference.md)**，其中包含分阶段精读清单、五条移植判据、Apache-2.0 合规流程、版本锚定与红线。
 
-| 路径 | 借鉴内容 |
-| --- | --- |
-| `plugins/manifest.schema.json` | manifest 的字段设计与版本策略 |
-| `packages/plugin-cli` | 插件脚手架与打包流程 |
-| `packages/cli` | CLI 按平台发包 + npm launcher 的分发工程 |
-| `packages/mcp-server` | MCP 工具的划分与权限模式（只读 / 读写 / 完全访问的三档设计） |
-| `agents/` | 外部进程驱动的生命周期管理 |
+一句话规则：**读它，不 fork 它；移植工程资产，不移植领域代码。** 参考锚点为 dbx `051cab8`（2026-10-13）；阅读一律以锚点为准，不追 `main`。
 
 ---
 

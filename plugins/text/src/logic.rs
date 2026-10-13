@@ -10,7 +10,8 @@ pub const EDIT_MAX_BYTES: u64 = 64 * 1024 * 1024;
 pub const LINES_PER_BLOCK: usize = 100;
 pub const SNIFF_BYTES: usize = 8192;
 
-/// 内容嗅探：无 0 字节、控制字符占比低即视为文本。
+/// 内容嗅探：头部必须是合法 UTF-8、无 0 字节、控制字符占比低。
+/// （非 UTF-8 编码的文本在 P1 由 hex 兜底查看；误判二进制为文本的代价更高。）
 pub fn sniff_is_text(bytes: &[u8]) -> bool {
     if bytes.is_empty() {
         return true;
@@ -22,7 +23,15 @@ pub fn sniff_is_text(bytes: &[u8]) -> bool {
         .iter()
         .filter(|&&c| c < 0x20 && c != b'\t' && c != b'\n' && c != b'\r')
         .count();
-    (ctrl as f64) / (bytes.len() as f64) <= 0.1
+    if (ctrl as f64) / (bytes.len() as f64) > 0.02 {
+        return false;
+    }
+    // 允许截断在多字节字符中间：剥掉尾部不完整序列再校验
+    let valid = match std::str::from_utf8(bytes) {
+        Ok(_) => true,
+        Err(e) => e.valid_up_to() >= bytes.len() - 3,
+    };
+    valid
 }
 
 pub struct TextCore {

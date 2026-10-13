@@ -19,7 +19,8 @@ fn whole_json_pretty_prints_and_outlines_top_keys() {
     let page = doc.page(PageRange { start: 0, count: 10 }).unwrap();
     assert_eq!(page.total, Some(1));
     let outline = doc.outline().unwrap();
-    assert_eq!(outline[0].text, "b"); // serde pretty 保持插入序
+    assert_eq!(outline[0].text, "a"); // serde_json 默认 BTreeMap：键按字典序输出
+    assert_eq!(outline[1].text, "b");
 }
 
 #[test]

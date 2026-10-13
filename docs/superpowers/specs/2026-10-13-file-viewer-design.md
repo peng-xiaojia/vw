@@ -11,9 +11,9 @@
 
 ## 1. 定位
 
-一个**插件化的桌面文件查看器**：以图形界面（GUI）为主交付物，供人查看各种格式的文件；同时提供 CLI 与 MCP 两个接口，供脚本和外部 AI agent 使用。
+一个**插件化的桌面文件查看与编辑工具**：以图形界面（GUI）为主交付物，供人查看各种格式的文件，并对其中的文本类格式做编辑保存；同时提供 CLI 与 MCP 两个接口，供脚本和外部 AI agent 使用。
 
-一句话概括架构：**内核零格式知识，一切格式能力都是插件；插件只产出一份统一的文档模型，所有外壳消费同一份模型。**
+一句话概括架构：**内核零格式知识，一切格式能力都是插件；插件只产出一份统一的文档模型，所有外壳消费同一份模型；编辑能力同样跟随插件，核心只负责保存管线。**
 
 ---
 
@@ -27,12 +27,14 @@
 4. **重依赖不进内核。** PDF、Office、媒体这类重格式的依赖由插件自带，按需下载。
 5. **架构统一可验证。** 「内置插件」与「外置插件」走同一套契约，差异只在传输介质；这一点由测试强制保证。
 6. **agent 可用。** 同一份文档模型通过 CLI 和 MCP 暴露，且与 GUI 走完全相同的代码路径。
+7. **简单格式可编辑并保存。** 编辑能力**跟随插件**：插件自行声明是否可编辑，文本类格式可编辑保存，复杂格式（PDF、Office、媒体）只读即可。核心不实现任何编辑语义。
 
 ### 2.2 非目标（YAGNI）
 
 | 非目标 | 理由 |
 | --- | --- |
-| 文件编辑与写入 | 查看器只读。写入会引入并发、冲突、撤销等一整套复杂度 |
+| 自动合并冲突 | v1 只做冲突**检测**与阻断，不做三方合并。合并需要理解格式语义，属于插件的职责 |
+| 核心级撤销栈 | 撤销由前端编辑器的 undo/redo 承担。核心若实现文档级撤销栈，就必须理解编辑语义，等于把格式知识搬回内核 |
 | 内置 AI 助手 | 明确不需要。agent 能力通过 MCP 交给外部工具 |
 | 云同步、账号体系 | 与「轻」冲突 |
 | Web 版与 Docker 部署 | dbx 有此能力，我们不需要 |
@@ -55,6 +57,9 @@
 | D6 | 插件 UI 入口 | **不提供** | dbx 的 `ui` 入口使插件内容出现两种形状，破坏了 IR 唯一性 |
 | D7 | dbx 代码复用 | **不 fork 整体**；内核重写，工程资产移植，插件宿主精读后重写 | 见 3.1 |
 | D8 | 产品范围 | 自用优先，协议上给开源生态留口子 | manifest 带协议版本号，签名位预留但 v1 不启用 |
+| D9 | 编辑能力 | 编辑**跟随插件**，声明为可选能力；核心不实现任何编辑语义，只提供保存管线 | 查看可以统一（渲染是核心职责），编辑不能统一（每种格式的编辑语义天然不同）。强行统一会让 IR 长出编辑语义，最终变成通用编辑器框架 |
+
+**D2 与 D9 不矛盾。** D2 约束的是「插件产出给核心渲染的内容」——只有一种形状。编辑是反方向的：用户的编辑意图经核心收敛为「一份新的文件字节」。因此准则是：**查看统一，编辑分级**。
 
 ### 3.1 为什么不对 dbx 做「复制后删减」
 
@@ -114,7 +119,7 @@
 │  registry  插件注册表 / 发现 / probe 调度               │
 │  doc       Document IR（唯一数据契约）                  │
 │  session   懒加载、流式分页、搜索、取消、超时            │
-│  policy    权限声明、只读约束、路径校验                 │
+│  policy    权限、路径校验、原子写与冲突检测             │
 │  render    text(→纯文本) / json(→IR JSON)               │
 └──────┬──────────────────────────────┬───────────────────┘
        │ Viewer 契约                  │ Viewer 契约
@@ -258,6 +263,15 @@ pub enum Inline {
 → {"id":3,"method":"page","params":{"handle":"d1","range":{"start":0,"count":200}}}
 ← {"id":3,"result":{"blocks":[ ... IR ... ]}}
 
+→ {"id":4,"method":"editCapability","params":{"handle":"d1"}}
+← {"id":4,"result":{"kind":"text","encoding":"utf-8","line_ending":"lf","has_bom":false}}
+
+→ {"id":5,"method":"snapshot","params":{"handle":"d1"}}
+← {"id":5,"result":{"kind":"text","text":"a,b\n1,2\n"}}
+
+→ {"id":6,"method":"serialize","params":{"handle":"d1","edited":{"kind":"text","text":"a,b\n1,3\n"}}}
+← {"id":6,"result":{"blob":"b7"}}   // 插件经 blob 通道交出字节，核心读取后原子写
+
 → {"id":9,"method":"cancel","params":{"target":3}}
 ← {"id":9,"result":{"cancelled":true}}
 ```
@@ -267,7 +281,67 @@ pub enum Inline {
 - 一个文档 = 一条长驻会话，`handle` 标识；插件进程可服务多个文档。
 - 每个请求带 `id`，支持乱序响应与取消。
 - 二进制经 `blob` 方法以临时文件路径传递，不走内联 base64。
+- **`serialize` 只把新字节写到临时文件，绝不写目标文件**；目标文件的写入由核心完成（见 5.4）。
 - 错误统一为 `{"error":{"kind":"...","message":"..."}}`，`kind` 取值见第 9 章。
+
+### 5.4 编辑契约（可选能力）
+
+编辑**不是**核心的能力，而是插件的可选能力。核心只提供保存管线，不理解任何格式的编辑语义。
+
+```rust
+/// 插件可选实现。未实现即视为只读。
+pub trait EditableDoc: Doc {
+    /// 声明编辑方式
+    fn edit_capability(&self) -> EditCapability;
+
+    /// 取当前可编辑内容的快照，供编辑器填充
+    fn snapshot(&self) -> Result<EditSnapshot, PluginError>;
+
+    /// 校验并序列化用户编辑后的内容为文件字节
+    fn serialize(&self, edited: &EditSnapshot) -> Result<Vec<u8>, PluginError>;
+}
+
+/// v1 只有两种取值。未知取值一律降级为只读，保证向前兼容。
+pub enum EditCapability {
+    /// 只读
+    None,
+    /// 纯文本编辑：核心提供通用文本编辑器
+    Text {
+        encoding: String,        // 如 "utf-8"
+        line_ending: LineEnding, // Lf / CrLf / Preserve
+        has_bom: bool,
+        max_bytes: Option<u64>,
+    },
+}
+
+pub enum EditSnapshot {
+    Text(String),
+}
+```
+
+**职责边界（本章的关键）：**
+
+| 环节 | 负责方 | 说明 |
+| --- | --- | --- |
+| 能否编辑、以什么方式编辑 | 插件 | 通过 `edit_capability` 声明 |
+| 编辑交互与 undo/redo | 前端编辑器 | 核心不实现撤销栈 |
+| 编辑内容的合法性校验 | 插件 | `serialize` 返回 `Err` 即拒绝保存，错误直接呈现给用户 |
+| 序列化（保持缩进、行尾、BOM、原格式） | 插件 | 只有插件知道原格式长什么样 |
+| 冲突检测、原子写、备份、权限 | **核心** | 统一实施；插件**永不直接写文件** |
+
+**保存管线（核心实现）：**
+
+1. 用户触发保存 → 核心调 `serialize(edited)` 取得新字节。插件可在此校验并拒绝。
+2. **冲突检测**：比对打开时记录的 `(mtime, size, hash)` 与当前磁盘状态，不一致即拒绝保存并提示文件已被外部修改。
+3. **原子写**：写入同目录临时文件 → `fsync` → 原子重命名覆盖，避免中途失败损坏原文件。
+4. **备份**：按配置保留一份 `.bak`，或写入带时间戳的备份。
+5. 更新会话基线哈希，清除 dirty 标记。
+
+**明确不做的事：** 不做三方合并，不做自动合并，不做文档级撤销栈。冲突发生时只提供「另存为 / 覆盖 / 放弃」三个选项。
+
+**编辑界面由核心提供，插件不贡献 UI。** 这与「插件贡献自定义 UI」被列为非目标（见 2.2）是一致的：插件只能从核心提供的编辑形态中选择其一，选不到合适的形态就只读。
+
+**为什么这样切分：** 插件负责**语义**（怎么序列化、是否合法），核心负责**安全**（原子写、冲突、确认、备份）。于是核心仍零格式知识，而插件完全不接触文件系统写入——权限模型因此可以保持简单。
 
 ---
 
@@ -290,6 +364,15 @@ CLI 走同一条路径，只是把第 5 步换成 `render/text` 或 `render/json
 - 会话在最后一个消费者释放后关闭；GUI 中关闭标签页即释放。
 - sidecar 进程空闲超过可配置时长（默认 5 分钟）后退出，避免常驻占内存。
 - 核心持有探测结果的缓存，键为 `(规范化路径, 修改时间, 大小)`，避免重复探测大文件。
+
+### 6.3 保存流程（仅可编辑插件）
+
+1. 用户触发保存 → 核心调 `EditableDoc::serialize(edited)`，插件校验并产出新字节；插件可返回 `Err` 拒绝保存。
+2. 核心比对基线 `(mtime, size, hash)` 与磁盘现状，不一致则阻断并提示冲突。
+3. 核心执行原子写（临时文件 → `fsync` → 重命名）与备份。
+4. 更新基线哈希，清除 dirty 标记，通知其他消费者刷新。
+
+CLI 通过 `vw save <file> --from <stdin>` 走**完全相同的管线**——它既是脚本化编辑入口，也是保存管线的 conformance 驱动器。
 
 ---
 
@@ -338,7 +421,12 @@ CLI 走同一条路径，只是把第 5 步换成 `render/text` 或 `render/json
   },
   "contributes": {
     "viewers": [
-      { "id": "pdf", "extensions": ["pdf"], "mime": ["application/pdf"] }
+      {
+        "id": "pdf",
+        "extensions": ["pdf"],
+        "mime": ["application/pdf"],
+        "capabilities": ["view"]
+      }
     ]
   },
   "permissions": ["fs.read", "tmp.write"],
@@ -354,6 +442,8 @@ CLI 走同一条路径，只是把第 5 步换成 `render/text` 或 `render/json
 ```
 
 `signature` 字段为将来公开生态预留，v1 留空。`executable` 支持 `{platform}` 与 `{ext}` 占位符，取值形如 `win32-x64`、`darwin-arm64`、`linux-x64-gnu`。
+
+`capabilities` 取值 `view` 与 `edit`，未声明 `edit` 即只读。**插件不需要 `fs.write` 权限**——它从不写文件，写由核心在用户确认后执行（见 5.4）。这是把写操作收归核心的直接收益。
 
 ---
 
@@ -402,6 +492,10 @@ pub enum ErrorKind {
     Unsupported,
     MalformedSource,
     PermissionDenied,
+    /// 保存前检测到文件已被外部修改
+    Conflict,
+    /// 插件在校验阶段拒绝保存
+    SaveRejected,
     Internal,
 }
 ```
@@ -418,8 +512,9 @@ pub enum ErrorKind {
 
 | 项 | v1 做法 | 后续 |
 | --- | --- | --- |
-| 权限声明 | manifest 的 `permissions` 字段（`fs.read`、`tmp.write`、`net.fetch`），安装时向用户展示 | 增加签名校验与权限变更提示 |
-| 源文件访问 | 核心以**只读**方式打开，插件仅获得源引用，不获得写句柄 | — |
+| 权限声明 | manifest 的 `permissions` 字段（`fs.read`、`tmp.write`、`net.fetch`），安装时向用户展示。**写文件不是插件权限**，因为插件从不写文件 | 增加签名校验与权限变更提示 |
+| 源文件访问 | 默认**只读**。只有插件声明 `edit` 能力且用户显式触发保存时，才由**核心**执行写入 | 保存前展示差异供用户确认 |
+| 写操作的收归 | 插件的职责止于「产出新的文件字节」；冲突检测、原子写、备份、确认全部由核心执行 | — |
 | 进程隔离 | sidecar 为独立进程，崩溃不波及主程序 | 叠加 OS 级沙箱：Windows 用 Job Object / AppContainer，macOS 用 `sandbox-exec`，Linux 用 seccomp 或 bubblewrap |
 | 路径校验 | 核心校验所有 `Source` 路径，拒绝越界与符号链接逃逸 | — |
 | 完整性 | 安装时校验 sha256 | 启用 `manifest.signature` 签名校验 |
@@ -438,6 +533,7 @@ pub enum ErrorKind {
 | 打开 100 MB 文本文件首屏 | < 300 ms |
 | 打开 500 页 PDF 首屏 | < 1 s |
 | sidecar 首次启动开销 | < 80 ms |
+| 保存 10 MB 文本文件（含冲突检测与原子写） | < 300 ms |
 
 缓存策略：
 
@@ -458,6 +554,8 @@ pub enum ErrorKind {
 4. **协议健壮性。** 插件返回非法 JSON、字段缺失、超长单行、乱序响应、中途退出。目标是核心给出明确错误而非崩溃。
 5. **外壳等价性测试。** 同一文件经 CLI `--json`、MCP 工具调用、GUI IPC 三条路径取到的 IR 必须等价。
 6. **插件脚手架自检。** `vw plugin new` 生成的模板必须立即通过 conformance 套件。
+7. **编辑往返测试。** 对每个声明 `edit` 能力的插件：`snapshot()` 后立即 `serialize()`，产出的字节必须**逐字节等于原文件**。这条验证「打开再保存不会改动文件」，是编辑功能最重要的安全网（能自动抓出缩进、行尾、BOM、尾随换行被意外规范化的问题）。
+8. **冲突与失败注入。** 保存前从外部篡改磁盘文件，核心必须阻断；模拟原子写中途失败，原文件必须完好无损。
 
 ---
 
@@ -465,8 +563,8 @@ pub enum ErrorKind {
 
 | 期 | 交付内容 | 理由 |
 | --- | --- | --- |
-| **P1** | `vw-core` + `vw-protocol` + Document IR + 内置插件（text / markdown / json / csv / hex）+ `render/text` 与 `render/json` + **transport 抽象与一个最小 sidecar 示例插件** + CLI 外壳 + conformance 套件 | CLI 是最便宜的外壳，且天然是 conformance 的驱动器。**一期必须同时具备两种 transport**，否则「架构统一」只是纸面承诺，无法被测试验证 |
-| **P2** | GUI 外壳（Tauri 2 + 极简前端 + `render/dom`）+ 内置插件 dir 与 archive | 建在已稳定的内核上，避免内核返工拖垮 UI；归档浏览与 GUI 的双击交互配合最自然 |
+| **P1** | `vw-core` + `vw-protocol` + Document IR + **编辑契约（Text 模式）与保存管线** + 内置插件（text / markdown / json / csv / hex）+ `render/text` 与 `render/json` + **transport 抽象与一个最小 sidecar 示例插件** + CLI 外壳（含 `vw save`）+ conformance 套件 | CLI 是最便宜的外壳，且天然是 conformance 的驱动器。**一期必须同时具备两种 transport**，否则「架构统一」只是纸面承诺，无法被测试验证。保存管线一期做完，GUI 二期才能直接接入而不必回头改内核 |
+| **P2** | GUI 外壳（Tauri 2 + 极简前端 + `render/dom`）+ **GUI 编辑器接入（文本编辑与 undo/redo）** + 内置插件 dir 与 archive | 建在已稳定的内核上，避免内核返工拖垮 UI；归档浏览与 GUI 的双击交互配合最自然 |
 
 **P1 是本规格之后第一份实现计划的范围**，P2–P5 各自需要独立的实现计划与独立的设计确认。
 | **P3** | MCP 外壳 | 复用 Session，工作量很小 |
@@ -540,3 +638,7 @@ plugins/archive   内置插件：归档列表与成员预览（P2）
 | 块（Block） | IR 的基本单元，如 Heading、Table、Image |
 | conformance 套件 | 强制两种 transport 行为一致的一致性测试 |
 | sidecar | 独立子进程形式的插件 |
+| EditCapability | 插件声明的编辑方式，v1 仅 `None` 与 `Text` 两种取值 |
+| EditSnapshot | 插件交给编辑器的可编辑内容快照，v1 仅文本一种形态 |
+| 保存管线 | 核心统一实现的 serialize → 冲突检测 → 原子写 → 备份流程，插件只参与其中第一步 |
+| 往返一致 | 不变量：`snapshot()` 后原样 `serialize()` 必须逐字节等于原文件 |

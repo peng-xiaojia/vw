@@ -7,12 +7,18 @@ members = [
     "crates/vw-plugin-sdk",
     "crates/vw-conformance",
     "crates/vw-cli",
+    "crates/vw-mcp",
+    "crates/vw-std",
     "plugins/text",
     "plugins/markdown",
     "plugins/json",
     "plugins/csv",
     "plugins/hex",
+    "plugins/dir",
+    "plugins/archive",
     "plugins/example-sidecar",
+    "plugins-heavy/vw-sqlite-sidecar",
+    "app",
 ]
 
 [workspace.package]
@@ -28,9 +34,14 @@ blake3 = "1"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 pulldown-cmark = { version = "0.10", default-features = false }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+ureq = { version = "2", default-features = false, features = ["tls", "gzip"] }
+sha2 = "0.10"
+rusqlite = { version = "0.32", features = ["bundled"] }
 vw-protocol = { path = "crates/vw-protocol" }
 vw-core = { path = "crates/vw-core" }
 vw-plugin-host = { path = "crates/vw-plugin-host" }
 vw-plugin-sdk = { path = "crates/vw-plugin-sdk" }
 vw-conformance = { path = "crates/vw-conformance" }
+vw-std = { path = "crates/vw-std" }
 vw-plugin-text = { path = "plugins/text" }

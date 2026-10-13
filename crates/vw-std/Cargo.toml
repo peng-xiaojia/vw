@@ -1,0 +1,19 @@
+[package]
+name = "vw-std"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw 标准插件集：内置五个插件 + 外部 sidecar 目录装载，GUI/CLI/MCP 共用"
+
+[dependencies]
+vw-protocol = { workspace = true }
+vw-core = { workspace = true }
+vw-plugin-host = { workspace = true }
+vw-plugin-text = { workspace = true }
+vw-plugin-markdown = { path = "../../plugins/markdown" }
+vw-plugin-json = { path = "../../plugins/json" }
+vw-plugin-csv = { path = "../../plugins/csv" }
+vw-plugin-hex = { path = "../../plugins/hex" }
+vw-plugin-dir = { path = "../../plugins/dir" }
+vw-plugin-archive = { path = "../../plugins/archive" }
+serde_json = { workspace = true }

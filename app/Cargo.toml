@@ -1,0 +1,12 @@
+[package]
+name = "vw-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw GUI 外壳（Tauri 2）"
+
+[lib]
+name = "vw_app"
+path = "src/lib.rs"
+
+[dependencies]

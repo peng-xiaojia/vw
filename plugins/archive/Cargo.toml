@@ -1,0 +1,16 @@
+[package]
+name = "vw-plugin-archive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw 内置插件：归档列表与成员预览（P2，zip）"
+
+[dependencies]
+vw-protocol = { workspace = true }
+vw-core = { workspace = true }
+zip = { workspace = true }
+blake3 = { workspace = true }
+
+[dev-dependencies]
+vw-plugin-text = { workspace = true }
+vw-plugin-markdown = { path = "../markdown" }

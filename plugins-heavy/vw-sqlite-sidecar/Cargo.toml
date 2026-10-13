@@ -1,0 +1,12 @@
+[package]
+name = "vw-sqlite-sidecar"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw 重格式参考插件：SQLite 数据库查看（sidecar，独立发布模板）"
+
+[[bin]]
+name = "vw-sqlite-sidecar"
+path = "src/main.rs"
+
+[dependencies]

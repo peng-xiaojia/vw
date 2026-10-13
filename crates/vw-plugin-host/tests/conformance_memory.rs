@@ -23,7 +23,7 @@ fn registry_with_host(host: HostViewer) -> Arc<Session> {
 fn sidecar_logic_passes_conformance_over_memory_pipe() {
     let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("cf-mem");
     let _ = std::fs::remove_dir_all(&dir);
-    std::env::set_var("VW_TMP_DIR", std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("tmp-mem"));
+    vw_core::set_tmp_override(Some(std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("tmp-mem")));
 
     let manifest = Manifest::simple_stdio("vw.example", "textlog", &["log"], &["view", "edit"], 40, "unused");
     let host = HostViewer::from_memory(manifest, Arc::new(SidecarText), HostConfig::default());
@@ -75,7 +75,7 @@ impl RpcDoc for RogueBlobDoc {
 
 #[test]
 fn blob_path_escape_is_rejected() {
-    std::env::set_var("VW_TMP_DIR", std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("tmp-rogue"));
+    vw_core::set_tmp_override(Some(std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("tmp-rogue")));
     let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("rogue");
     std::fs::create_dir_all(&dir).unwrap();
     let f = dir.join("r.log");
@@ -137,7 +137,7 @@ impl RpcDoc for SlowDoc {
 
 #[test]
 fn hung_request_times_out_and_process_gets_killed() {
-    std::env::set_var("VW_TMP_DIR", std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("tmp-slow"));
+    vw_core::set_tmp_override(Some(std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("tmp-slow")));
     let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("slow");
     std::fs::create_dir_all(&dir).unwrap();
     let f = dir.join("s.log");

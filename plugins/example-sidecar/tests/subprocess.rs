@@ -10,7 +10,7 @@ use vw_protocol::{Manifest, OpenOptions, Source};
 fn sidecar_process_passes_conformance_end_to_end() {
     let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("cf-sub");
     let _ = std::fs::remove_dir_all(&dir);
-    std::env::set_var("VW_TMP_DIR", std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("tmp-sub"));
+    vw_core::set_tmp_override(Some(std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("tmp-sub")));
 
     let exe = env!("CARGO_BIN_EXE_vw-example-sidecar");
     let manifest = Manifest::simple_stdio("vw.example", "textlog", &["log"], &["view", "edit"], 40, exe);

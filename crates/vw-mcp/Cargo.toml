@@ -1,0 +1,12 @@
+[package]
+name = "vw-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw MCP 外壳：stdio 上的 Model Context Protocol 服务器"
+
+[[bin]]
+name = "vw-mcp"
+path = "src/main.rs"
+
+[dependencies]

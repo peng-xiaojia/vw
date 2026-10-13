@@ -62,14 +62,9 @@ fn resolve_executable(tpl: &str) -> PathBuf {
     PathBuf::from(s)
 }
 
-/// 会话临时根目录：`VW_TMP_DIR` 可覆盖（测试用），否则系统临时目录。
+/// 会话临时根目录：委托内核统一实现（`VW_TMP_DIR` 可覆盖）。
 pub fn tmp_root() -> PathBuf {
-    if let Ok(d) = std::env::var("VW_TMP_DIR") {
-        if !d.is_empty() {
-            return PathBuf::from(d);
-        }
-    }
-    std::env::temp_dir().join("vw")
+    vw_core::tmp_root()
 }
 
 /// 校验 blob 相对路径必须落在会话临时目录内（设计规格 §5.3/§10）。

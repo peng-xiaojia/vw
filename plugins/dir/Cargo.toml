@@ -1,0 +1,10 @@
+[package]
+name = "vw-plugin-dir"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw 内置插件：目录列表（P2）"
+
+[dependencies]
+vw-protocol = { workspace = true }
+vw-core = { workspace = true }

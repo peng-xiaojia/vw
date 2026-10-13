@@ -154,21 +154,30 @@ impl Baseline {
     }
 }
 
-/// 校验 `Source`：P1 仅支持存在的本地文件路径。
+/// 校验 `Source`：本地文件或目录（目录查看为 P2 能力）。
 pub fn validate_source(src: &Source) -> Result<PathBuf, PluginError> {
     match src {
-        Source::Path { .. } => {}
-        Source::Dir { .. } => {
-            return Err(PluginError::new(ErrorKind::Unsupported, "目录查看在 P2 提供"))
-        }
+        Source::Path { .. } | Source::Dir { .. } => {}
         Source::Archive { .. } => {
-            return Err(PluginError::new(ErrorKind::Unsupported, "归档成员查看在 P2 提供"))
+            return Err(PluginError::new(
+                ErrorKind::Unsupported,
+                "归档源需经 open_member 物化后打开（见 session::open_member）",
+            ))
         }
     }
     let p = src.as_fs_path().expect("已排除非路径源");
     let canon = fs::canonicalize(p).map_err(PluginError::from)?;
-    if !canon.is_file() {
-        return Err(PluginError::malformed(format!("不是常规文件：{}", canon.display())));
+    match src {
+        Source::Dir { .. } => {
+            if !canon.is_dir() {
+                return Err(PluginError::malformed(format!("不是目录：{}", canon.display())));
+            }
+        }
+        _ => {
+            if !canon.is_file() {
+                return Err(PluginError::malformed(format!("不是常规文件：{}", canon.display())));
+            }
+        }
     }
     Ok(canon)
 }

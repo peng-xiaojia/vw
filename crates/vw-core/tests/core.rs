@@ -105,11 +105,12 @@ fn registry_with(id: &str, priority: i64) -> Registry {
 }
 
 #[test]
-fn validate_source_rejects_missing_and_dir() {
+fn validate_source_rejects_missing_and_accepts_dir() {
     let tmp = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("vw-core-test-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&tmp).unwrap();
     assert_eq!(validate_source(&Source::path(tmp.join("nope.txt"))).unwrap_err().kind, ErrorKind::MalformedSource);
-    assert_eq!(validate_source(&Source::Dir { path: tmp.clone() }).unwrap_err().kind, ErrorKind::Unsupported);
+    // P2：目录源合法
+    assert!(validate_source(&Source::Dir { path: tmp.clone() }).is_ok());
     let f = write_file(&tmp, "ok.txt", b"hi");
     assert!(validate_source(&Source::path(&f)).is_ok());
     let _ = fs::remove_dir_all(&tmp);

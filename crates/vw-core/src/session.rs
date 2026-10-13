@@ -134,6 +134,10 @@ impl Session {
         let doc = viewer.open(&source, &opts)?;
         let meta = doc.meta();
         let baseline = policy::capture_baseline(path.clone()).map_err(PluginError::from)?;
+        // 小文件：open 返回前等待基线就绪，确定性排除「打开瞬间被篡改」的竞态
+        if meta.size.unwrap_or(0) <= policy::BASELINE_WAIT_LIMIT {
+            baseline.snapshot()?;
+        }
         Ok(OpenedDoc {
             id: uuid::Uuid::new_v4().to_string(),
             viewer_id: viewer_id_of(&viewer),

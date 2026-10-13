@@ -11,3 +11,7 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 blake3 = { workspace = true }
 vw-protocol = { workspace = true }
+
+[dev-dependencies]
+vw-plugin-text = { workspace = true }
+vw-conformance = { workspace = true }

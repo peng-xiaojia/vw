@@ -301,7 +301,7 @@ where
 fn sanitize_relative(p: &str) -> Result<(), PluginError> {
     let path = std::path::Path::new(p);
     if path.is_absolute() || p.contains("..") {
-        return Err(PluginError::internal(format!("blob 路径必须是 tmp_dir 内的相对路径：{p}")));
+        return Err(PluginError::permission(format!("blob 路径必须是 tmp_dir 内的相对路径：{p}")));
     }
     Ok(())
 }

@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "vw 最小 sidecar 示例插件（stdio JSON-RPC）"
 
+[lib]
+name = "vw_example_sidecar"
+path = "src/lib.rs"
+
 [[bin]]
 name = "vw-example-sidecar"
 path = "src/main.rs"
@@ -13,3 +17,8 @@ path = "src/main.rs"
 vw-protocol = { workspace = true }
 vw-plugin-sdk = { workspace = true }
 vw-plugin-text = { workspace = true }
+
+[dev-dependencies]
+vw-plugin-host = { workspace = true }
+vw-conformance = { workspace = true }
+vw-core = { workspace = true }

@@ -462,6 +462,8 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+ "vw-conformance",
+ "vw-plugin-text",
  "vw-protocol",
 ]
 
@@ -469,6 +471,9 @@ dependencies = [
 name = "vw-example-sidecar"
 version = "0.1.0"
 dependencies = [
+ "vw-conformance",
+ "vw-core",
+ "vw-plugin-host",
  "vw-plugin-sdk",
  "vw-plugin-text",
  "vw-protocol",
@@ -498,7 +503,9 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+ "vw-conformance",
  "vw-core",
+ "vw-example-sidecar",
  "vw-plugin-sdk",
  "vw-protocol",
 ]

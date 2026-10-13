@@ -10,42 +10,62 @@ use std::time::SystemTime;
 use vw_protocol::{ErrorKind, PluginError, Source};
 
 /// 打开时的文件基线：`(mtime, size, hash)`。
-/// 哈希用 BLAKE3，由后台线程计算，不阻塞首屏；保存时若尚未就绪则等待。
+/// 哈希用 BLAKE3，由后台线程以「稳定快照」方式计算（前后两次 fingerprint
+/// 一致才采纳），不阻塞首屏；保存时若尚未就绪则等待。
 pub struct Baseline {
     path: PathBuf,
-    mtime: SystemTime,
-    size: u64,
-    hash: BaselineHash,
+    snap: BaselineSnap,
+}
+
+/// 一个内容快照。
+#[derive(Debug, Clone)]
+pub struct Snapshot {
+    pub mtime: SystemTime,
+    pub size: u64,
+    pub hash: String,
 }
 
 enum HashState {
-    Pending(Receiver<std::io::Result<String>>),
-    Ready(String),
+    Pending(Receiver<std::io::Result<Snapshot>>),
+    Ready(Snapshot),
     Failed(String),
 }
 
-struct BaselineHash {
+struct BaselineSnap {
     state: Mutex<HashState>,
 }
 
-impl BaselineHash {
+/// 哈希期间文件未再变化才算有效基线（防止把篡改后的内容当基线）。
+fn hash_stable(path: &Path) -> std::io::Result<Snapshot> {
+    for _ in 0..8 {
+        let (mtime, size) = fingerprint(path)?;
+        let hash = hash_file(path)?;
+        let (mtime2, size2) = fingerprint(path)?;
+        if mtime == mtime2 && size == size2 {
+            return Ok(Snapshot { mtime, size, hash });
+        }
+    }
+    Err(std::io::Error::other("文件持续变化，无法建立基线"))
+}
+
+impl BaselineSnap {
     fn spawn(path: PathBuf) -> Self {
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            let _ = tx.send(hash_file(&path));
+            let _ = tx.send(hash_stable(&path));
         });
         Self { state: Mutex::new(HashState::Pending(rx)) }
     }
 
-    fn ready(hex: String) -> Self {
-        Self { state: Mutex::new(HashState::Ready(hex)) }
+    fn ready(snap: Snapshot) -> Self {
+        Self { state: Mutex::new(HashState::Ready(snap)) }
     }
 
-    fn get(&self) -> Result<String, PluginError> {
+    fn get(&self) -> Result<Snapshot, PluginError> {
         let taken = {
             let mut st = self.state.lock().unwrap();
             match &*st {
-                HashState::Ready(h) => return Ok(h.clone()),
+                HashState::Ready(s) => return Ok(s.clone()),
                 HashState::Failed(e) => return Err(PluginError::internal(e.clone())),
                 HashState::Pending(_) => {
                     std::mem::replace(&mut *st, HashState::Failed("unreachable".into()))
@@ -60,9 +80,9 @@ impl BaselineHash {
                     .and_then(|r| r);
                 let mut st = self.state.lock().unwrap();
                 match res {
-                    Ok(h) => {
-                        *st = HashState::Ready(h.clone());
-                        Ok(h)
+                    Ok(s) => {
+                        *st = HashState::Ready(s.clone());
+                        Ok(s)
                     }
                     Err(e) => {
                         let msg = format!("基线哈希不可用：{e}");
@@ -87,35 +107,44 @@ pub fn fingerprint(path: &Path) -> std::io::Result<(SystemTime, u64)> {
 }
 
 pub fn capture_baseline(path: PathBuf) -> std::io::Result<Baseline> {
-    let (mtime, size) = fingerprint(&path)?;
-    Ok(Baseline { mtime, size, hash: BaselineHash::spawn(path.clone()), path })
+    let snap = BaselineSnap::spawn(path.clone());
+    Ok(Baseline { path, snap })
 }
+
+/// 小文件阈值：open 返回前等待基线就绪，保证基线确定性地对应打开时的内容。
+pub const BASELINE_WAIT_LIMIT: u64 = 4 * 1024 * 1024;
 
 impl Baseline {
     pub fn path(&self) -> &Path {
         &self.path
     }
 
-    /// 测试与诊断用：取基线哈希（必要时等待后台线程完成）。
+    /// 取基线快照（必要时等待后台线程完成）。
+    pub fn snapshot(&self) -> Result<Snapshot, PluginError> {
+        self.snap.get()
+    }
+
+    /// 诊断/测试用：等待并返回基线哈希。
     pub fn hash_hex(&self) -> Result<String, PluginError> {
-        self.hash.get()
+        Ok(self.snap.get()?.hash)
     }
 
     /// 保存成功后用新内容直接构建基线（哈希来自刚写入的字节，无需重读）。
     pub fn after_write(path: PathBuf, bytes: &[u8]) -> std::io::Result<Baseline> {
         let (mtime, size) = fingerprint(&path)?;
-        Ok(Baseline { mtime, size, hash: BaselineHash::ready(blake3::hash(bytes).to_string()), path })
+        let hash = blake3::hash(bytes).to_string();
+        Ok(Baseline { path, snap: BaselineSnap::ready(Snapshot { mtime, size, hash }) })
     }
 
     /// 冲突检测：比对基线与磁盘现状。内容相同（例如仅被 touch）视为未变。
     pub fn check_unchanged(&self) -> Result<(), PluginError> {
+        let snap = self.snap.get()?;
         let (mtime, size) = fingerprint(&self.path).map_err(PluginError::from)?;
-        if mtime == self.mtime && size == self.size {
+        if mtime == snap.mtime && size == snap.size {
             return Ok(());
         }
-        let base_hash = self.hash.get()?;
         let cur_hash = hash_file(&self.path).map_err(PluginError::from)?;
-        if base_hash == cur_hash {
+        if cur_hash == snap.hash {
             return Ok(());
         }
         Err(PluginError::conflict(format!(

@@ -12,3 +12,7 @@ uuid = { workspace = true }
 vw-protocol = { workspace = true }
 vw-core = { workspace = true }
 vw-plugin-sdk = { workspace = true }
+
+[dev-dependencies]
+vw-conformance = { workspace = true }
+vw-example-sidecar = { path = "../../plugins/example-sidecar" }

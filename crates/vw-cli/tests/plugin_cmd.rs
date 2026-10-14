@@ -122,3 +122,18 @@ fn plugin_new_scaffolds_complete_project() {
     // 非法名字被拒
     assert!(plugin_new("Bad_Name!", &root).is_err());
 }
+
+#[test]
+fn mirror_prefix_replacement() {
+    use vw_cli::plugin_cmd::apply_mirror;
+    assert_eq!(apply_mirror("https://api.github.com/x", None), "https://api.github.com/x");
+    assert_eq!(apply_mirror("https://api.github.com/x", Some("")), "https://api.github.com/x");
+    assert_eq!(
+        apply_mirror("https://api.github.com/repos/a/b", Some("https://mirror.example.com")),
+        "https://mirror.example.com/https://api.github.com/repos/a/b"
+    );
+    assert_eq!(
+        apply_mirror("https://github.com/a/b/releases/download/v1/f.vwpkg", Some("https://m.example.com/")),
+        "https://m.example.com/https://github.com/a/b/releases/download/v1/f.vwpkg"
+    );
+}

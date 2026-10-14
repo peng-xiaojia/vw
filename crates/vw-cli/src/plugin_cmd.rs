@@ -25,8 +25,24 @@ pub struct Asset {
     pub url: String,
 }
 
+/// §8：`VW_PLUGIN_MIRROR` 做前缀替换——镜像端点作为前缀，实际请求
+/// `{mirror}/{原 URL}`（兼容 ghproxy 类前缀镜像）。空值/未设置走官方源。
+pub fn apply_mirror(url: &str, mirror: Option<&str>) -> String {
+    match mirror {
+        Some(m) if !m.trim().is_empty() => {
+            let m = m.trim().trim_end_matches('/');
+            format!("{m}/{url}")
+        }
+        _ => url.to_string(),
+    }
+}
+
+fn current_mirror() -> Option<String> {
+    std::env::var("VW_PLUGIN_MIRROR").ok().filter(|m| !m.trim().is_empty())
+}
+
 fn http_get(url: &str) -> Result<Vec<u8>, PluginError> {
-    let resp = ureq::get(url)
+    let resp = ureq::get(&apply_mirror(url, current_mirror().as_deref()))
         .set("User-Agent", "vw-cli")
         .set("Accept", "application/vnd.github+json")
         .timeout(std::time::Duration::from_secs(60))

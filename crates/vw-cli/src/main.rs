@@ -235,6 +235,7 @@ fn run(cli: Cli) -> Result<(), PluginError> {
         Cmd::Doctor => {
             let (_, hosts) = build_registry()?;
             println!("外部插件数：{}", hosts.len());
+            println!("stderr 日志目录：{}", vw_core::logs_root().display());
             for h in &hosts {
                 let d = h.diagnostics();
                 println!("— {}：crashed={}", d.plugin_id, d.crashed);

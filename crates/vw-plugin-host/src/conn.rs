@@ -31,6 +31,7 @@ impl Conn {
         stdout: Box<dyn BufRead + Send>,
         stderr: Option<Box<dyn BufRead + Send>>,
         kill: Box<dyn Fn() + Send + Sync>,
+        log: Option<std::fs::File>,
     ) -> Arc<Conn> {
         let pending: Arc<Mutex<HashMap<u64, mpsc::SyncSender<Result<serde_json::Value, PluginError>>>>> =
             Arc::new(Mutex::new(HashMap::new()));
@@ -76,6 +77,7 @@ impl Conn {
 
         let stderr_thread = stderr.map(|mut err| {
             let tail = stderr_tail.clone();
+            let mut log = log;
             std::thread::spawn(move || {
                 let mut line = String::new();
                 loop {
@@ -83,11 +85,17 @@ impl Conn {
                     match err.read_line(&mut line) {
                         Ok(0) | Err(_) => break,
                         Ok(_) => {
-                            let mut t = tail.lock().unwrap();
-                            if t.len() >= 200 {
-                                t.pop_front();
+                            {
+                                let mut t = tail.lock().unwrap();
+                                if t.len() >= 200 {
+                                    t.pop_front();
+                                }
+                                t.push_back(line.trim_end().to_string());
                             }
-                            t.push_back(line.trim_end().to_string());
+                            // §9：同步落盘，供 vw doctor 与事后排查
+                            if let Some(f) = log.as_mut() {
+                                let _ = f.write_all(line.as_bytes());
+                            }
                         }
                     }
                 }
@@ -107,7 +115,8 @@ impl Conn {
     }
 
     /// 从子进程接入（接管 Child 所有权，kill 闭包持有它）。
-    pub fn connect_process(mut child: Child) -> Result<Arc<Conn>, PluginError> {
+    /// `log`：插件 stderr 落盘文件（§9 诊断；None = 仅内存尾部）。
+    pub fn connect_process(mut child: Child, log: Option<std::fs::File>) -> Result<Arc<Conn>, PluginError> {
         let stdin = child.stdin.take().ok_or_else(|| PluginError::internal("无法接管子进程 stdin"))?;
         let stdout = child.stdout.take().ok_or_else(|| PluginError::internal("无法接管子进程 stdout"))?;
         let stderr = child.stderr.take().ok_or_else(|| PluginError::internal("无法接管子进程 stderr"))?;
@@ -122,6 +131,7 @@ impl Conn {
             Box::new(BufReader::new(stdout)),
             Some(Box::new(BufReader::new(stderr))),
             kill,
+            log,
         ))
     }
 
@@ -133,6 +143,7 @@ impl Conn {
             Box::new(BufReader::new(read_half)),
             None,
             kill,
+            None,
         )
     }
 

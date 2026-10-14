@@ -99,6 +99,10 @@ impl RpcDoc for SidecarTextDoc {
 /// sidecar 入口：接管 stdin/stdout 直到 EOF。
 pub fn run() {
     vw_plugin_sdk::enable_idle_exit_from_env();
+    // 测试钩子：验证宿主的 stderr 落盘（§9）
+    if std::env::var("VW_EMIT_STDERR").ok().as_deref() == Some("1") {
+        eprintln!("stderr-boom-marker");
+    }
     // Stdin/Stdout 句柄本身 Send + 'static；serve 内部自建缓冲
     vw_plugin_sdk::serve(std::io::stdin(), std::io::stdout(), Arc::new(SidecarText));
 }

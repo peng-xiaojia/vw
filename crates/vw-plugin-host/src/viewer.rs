@@ -67,6 +67,44 @@ pub fn tmp_root() -> PathBuf {
     vw_core::tmp_root()
 }
 
+/// 打开（并清扫过期的）插件 stderr 日志文件（§9：按插件 id 与日期，
+/// 滚动清理 7 天前的旧日志）。内存线缆不落盘。
+fn open_stderr_log(plugin_id: &str) -> Option<std::fs::File> {
+    use std::io::Write;
+    let dir = vw_core::logs_root();
+    std::fs::create_dir_all(&dir).ok()?;
+    // 滚动清理：删除 7 天前的日志
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        let cutoff = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+            - 7 * 86_400;
+        for e in entries.flatten() {
+            if e.path().extension().and_then(|x| x.to_str()) != Some("log") {
+                continue;
+            }
+            if let Ok(md) = e.metadata() {
+                if let Ok(m) = md.modified() {
+                    if let Ok(age) = m.duration_since(std::time::UNIX_EPOCH) {
+                        if age.as_secs() < cutoff {
+                            let _ = std::fs::remove_file(e.path());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let safe: String = plugin_id
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' })
+        .collect();
+    let path = dir.join(format!("{safe}-{}.log", vw_core::date_stamp()));
+    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path).ok()?;
+    let _ = writeln!(f, "---- 会话开始 {} ----", vw_core::date_stamp());
+    Some(f)
+}
+
 /// 校验 blob 相对路径必须落在会话临时目录内（设计规格 §5.3/§10）。
 fn validate_blob_path(tmp_dir: &Path, rel: &str) -> Result<PathBuf, PluginError> {
     if rel.is_empty() {
@@ -159,7 +197,7 @@ impl HostViewer {
                     .stderr(Stdio::piped())
                     .spawn()
                     .map_err(|e| PluginError::crashed(format!("启动插件进程失败：{e}")))?;
-                Conn::connect_process(child)?
+                Conn::connect_process(child, open_stderr_log(&self.manifest.id))?
             }
             Spawn::Memory { viewer } => {
                 let (client, server) = vw_plugin_sdk::mempipe();

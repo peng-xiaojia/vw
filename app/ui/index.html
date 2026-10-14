@@ -1,1 +1,31 @@
-P2 GUI 前端占位。
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>vw —— 文件查看器</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="toolbar">
+    <input id="path" type="text" spellcheck="false" placeholder="输入文件/目录路径，如 G:\data\report.zip" />
+    <button id="btn-open">打开</button>
+    <span id="badge" class="badge">—</span>
+    <span class="spacer"></span>
+    <input id="query" type="text" spellcheck="false" placeholder="搜索…" />
+    <button id="btn-search">搜索</button>
+    <button id="btn-edit" class="hidden">编辑</button>
+    <button id="btn-save" class="hidden">保存</button>
+  </header>
+  <main id="main">
+    <aside id="sidebar" class="hidden">
+      <div class="side-title">搜索结果</div>
+      <ul id="hits"></ul>
+    </aside>
+    <section id="content"></section>
+    <textarea id="editor" class="hidden" spellcheck="false"></textarea>
+  </main>
+  <footer id="status">就绪</footer>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

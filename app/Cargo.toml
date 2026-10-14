@@ -9,4 +9,22 @@ description = "vw GUI 外壳（Tauri 2）"
 name = "vw_app"
 path = "src/lib.rs"
 
+[[bin]]
+name = "vw-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
 [dependencies]
+tauri = { version = "2", features = [] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+vw-protocol = { workspace = true }
+vw-core = { workspace = true }
+vw-std = { workspace = true }
+
+[dev-dependencies]
+vw-plugin-text = { workspace = true }
+zip = { workspace = true }
+vw-plugin-archive = { path = "../plugins/archive" }

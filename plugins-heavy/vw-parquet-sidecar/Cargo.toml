@@ -1,0 +1,19 @@
+[package]
+name = "vw-parquet-sidecar"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "vw 重格式参考插件：Parquet 数据文件查看（sidecar，独立发布模板）"
+
+[[bin]]
+name = "vw-parquet-sidecar"
+path = "src/main.rs"
+
+[dependencies]
+vw-protocol = { workspace = true }
+vw-plugin-sdk = { workspace = true }
+parquet = { workspace = true }
+
+[dev-dependencies]
+vw-plugin-host = { workspace = true }
+vw-core = { workspace = true }

@@ -17,7 +17,7 @@ members = [
     "plugins/dir",
     "plugins/archive",
     "plugins/example-sidecar",
-    "plugins-heavy/vw-sqlite-sidecar",
+    "plugins-heavy/vw-parquet-sidecar",
     "app",
 ]
 
@@ -37,7 +37,7 @@ pulldown-cmark = { version = "0.10", default-features = false }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 ureq = { version = "2", default-features = false, features = ["native-tls", "gzip"] }
 sha2 = "0.10"
-rusqlite = { version = "0.32", features = ["bundled"] }
+parquet = { version = "54", default-features = false, features = ["snap", "brotli", "flate2"] }
 vw-protocol = { path = "crates/vw-protocol" }
 vw-core = { path = "crates/vw-core" }
 vw-plugin-host = { path = "crates/vw-plugin-host" }

@@ -22,6 +22,7 @@ plugins/           内置插件：text / markdown / json / csv / hex / dir / arc
                    example-sidecar（最小 sidecar 示例，conformance 被测对象）
 plugins-heavy/     重格式参考插件：vw-parquet-sidecar（独立发布模板）
 app/               GUI 外壳（Tauri 2 + 零构建链原生 JS 前端）
+tools/wry-probe    诊断工具：最小 WebView2 创建探针（隔离 tauri/环境因素）
 docs/              设计规格与参考实现规范
 ```
 
@@ -58,6 +59,12 @@ vw-mcp                           # stdio；保存需 VW_MCP_ALLOW_SAVE=1
 # GUI
 vw-app                           # Tauri 2 窗口
 ```
+
+GUI 首启说明：
+- Windows 首次运行未签名的新 exe 会被 SmartScreen 拦截，点「更多信息 → 仍要运行」即可；
+- WebView2 数据目录默认在 **exe 旁 `webview-data/`**（便携形态），可用 `VW_WEBVIEW_DATA` 覆盖。
+  刻意不用 `%LOCALAPPDATA%\<identifier>`：受限令牌/安全策略环境下该位置不可写，
+  会导致 WebView2 报 E_UNEXPECTED / 拒绝访问（本项目开发环境实测复现，详见 app/src/lib.rs 注释）。
 
 ## 一致性保证
 

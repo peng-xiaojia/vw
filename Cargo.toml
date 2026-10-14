@@ -18,6 +18,7 @@ members = [
     "plugins/archive",
     "plugins/example-sidecar",
     "plugins-heavy/vw-parquet-sidecar",
+    "tools/wry-probe",
     "app",
 ]
 

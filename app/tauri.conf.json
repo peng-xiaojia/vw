@@ -8,14 +8,7 @@
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "vw —— 文件查看器",
-        "width": 1100,
-        "height": 760,
-        "minWidth": 720
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }

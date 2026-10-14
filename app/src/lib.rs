@@ -206,6 +206,24 @@ fn vw_close(state: tauri::State<AppState>, handle: String) -> Result<(), String>
     state.close_impl(&handle).map_err(|e| e.to_string())
 }
 
+/// WebView2 数据目录：`VW_WEBVIEW_DATA` 覆盖；默认 exe 旁 `webview-data/`。
+///
+/// 为什么不用 `%LOCALAPPDATA%\<identifier>`（Tauri 默认）：在受限令牌或
+/// 安全策略环境下该位置对浏览器子进程不可写，WebView2 环境创建会以
+/// E_UNEXPECTED / 拒绝访问 失败（本仓库开发环境实测复现）；exe 旁目录
+/// 同时保持「便携版」形态（规格 §3.1 踩坑经验）。
+pub fn webview_data_dir() -> std::path::PathBuf {
+    if let Ok(d) = std::env::var("VW_WEBVIEW_DATA") {
+        if !d.is_empty() {
+            return std::path::PathBuf::from(d);
+        }
+    }
+    let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    exe.parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join("webview-data")
+}
+
 pub fn run_app() -> tauri::Result<()> {
     let state = AppState::new().expect("初始化插件注册表失败");
     tauri::Builder::default()
@@ -213,5 +231,18 @@ pub fn run_app() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             vw_open, vw_page, vw_outline, vw_search, vw_snapshot, vw_save, vw_close
         ])
+        .setup(|app| {
+            let data_dir = webview_data_dir();
+            std::fs::create_dir_all(&data_dir).map_err(|e| {
+                format!("创建 WebView2 数据目录失败（{}）：{e}", data_dir.display())
+            })?;
+            tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+                .title("vw —— 文件查看器")
+                .inner_size(1100.0, 760.0)
+                .min_inner_size(720.0, 480.0)
+                .data_directory(data_dir)
+                .build()?;
+            Ok(())
+        })
         .run(tauri::generate_context!())
 }

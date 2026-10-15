@@ -25,6 +25,8 @@ Office 解压预算：最多 4096 个成员、256 MiB 总解压量、单个 XML 
 
 ## 桌面交互与发布
 
+展示/源码切换旁提供「其他软件打开…」和「在终端打开」，文件菜单也有同样入口。前者调用 Windows 应用选择器打开当前文件的已保存版本，后者以文件所在目录（目录标签则为该目录）启动交互式系统 PowerShell，不执行文件内容。未保存时先询问保存/不保存/取消；不保存仍保留本软件中的草稿。取消选择器无错误提示；归档成员需先导出副本。外部编辑后的内容不会自动替换当前草稿或预览，可关闭标签后重新打开。窄窗口的目录浮层限定在正文范围内，不遮挡操作按钮。验证见 [外部工具验收](reviews/2026-10-15-external-tools-validation.md)。
+
 公共编辑菜单提供格式化（Shift+Alt+F）、查找（Ctrl+F）、替换与全部替换（Ctrl+H）；全部替换支持单次撤销。视图菜单控制行号与自动换行（Alt+Z），作用于源码及文本预览。状态栏分开提供「重新解码」和「保存编码」，支持 UTF-8 / BOM、UTF-16 LE/BE、GBK、GB18030、Shift-JIS、Big5、Windows-1252。不能表示的字符拒绝保存；所有保存仍执行插件校验、冲突检测、备份和原子写入。
 
 格式化由插件声明与实现：JSON/JSONL 使用插件内部的空白排版，保留重复键、键顺序和数字字面量；JS/TS、HTML、Markdown、CSS/SCSS/Less、YAML 使用内置离线 Prettier Worker。SH/BAT、Python、Rust 等尚未注册格式化器，入口自动禁用；格式化只改变草稿，不自动保存。插件扩展接口见 [能力注册](plugin-capabilities.md)。
@@ -45,7 +47,7 @@ Windows 构建输出位于 `dist/windows/`：`portable/vw-app.exe`、`vw-windows
 
 ## 验证记录
 
-前端控制器、渲染安全、目录树、拖放、菜单、标签与编辑状态回归共 53 项通过。真实 Chromium DOM 检查通过目录树批量折叠、滚轮字号、Markdown 草稿展示、HTML 原样式及隔离、伪造外链拒绝和多标签操作。真实 WebView2 对比用户原型的 CSS、Logo、字体与卡片布局，并通过本地子页面导航及标签位置保留，详见 [HTML 与标签验收](reviews/2026-10-15-html-tabs-validation.md)。完整 Rust 工作区测试通过。本轮编辑、编码转换与 Office 验证见 [编辑功能验收](reviews/2026-10-15-editor-validation.md)。独立代码审查修复了退出菜单权限缺失和 ZIP 实际解压量检查；此前 Office 审查修复保持有效。
+前端控制器、渲染安全、目录树、拖放、菜单、标签与编辑状态回归共 60 项通过。真实 Chromium DOM 检查通过目录树批量折叠、滚轮字号、Markdown 草稿展示、HTML 原样式及隔离、伪造外链拒绝和多标签操作。真实 WebView2 对比用户原型的 CSS、Logo、字体与卡片布局，并通过本地子页面导航及标签位置保留，详见 [HTML 与标签验收](reviews/2026-10-15-html-tabs-validation.md)。完整 Rust 工作区测试通过。本轮编辑、编码转换与 Office 验证见 [编辑功能验收](reviews/2026-10-15-editor-validation.md)。独立代码审查修复了退出菜单权限缺失和 ZIP 实际解压量检查；此前 Office 审查修复保持有效。
 
 工作区测试与 Windows 打包在正常 Windows 权限下执行；受限执行环境无法 canonicalize 缓存的 Tauri 文件，不能以该环境的权限失败作为正常用户环境的产品结论。当前菜单与插件中心验证见 [交付验证](reviews/2026-10-14-menu-plugin-validation.md)，此前格式预览与拖放验证见 [前轮记录](reviews/2026-10-14-desktop-completion-validation.md)。
 

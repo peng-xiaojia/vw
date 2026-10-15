@@ -22,3 +22,14 @@ test('tree selects existing icon assets for folders and file types', () => {
   assert.equal(fileIcon({ name: 'report.docx' }), 'file-text');
   assert.equal(fileIcon({ name: 'unknown.bin' }), 'file');
 });
+
+test('external tool actions require a local document and are disabled while launching', () => {
+  const flags = state => Object.fromEntries(menuStates(state));
+  assert.equal(flags({}).otherApp, false);
+  assert.equal(flags({ doc: { inner: null, viewerId: 'text' } }).otherApp, true);
+  assert.equal(flags({ doc: { inner: null, viewerId: 'dir' } }).otherApp, false);
+  assert.equal(flags({ doc: { inner: null, viewerId: 'dir' } }).terminal, true);
+  assert.equal(flags({ doc: { inner: 'note.txt', viewerId: 'text' } }).terminal, false);
+  assert.equal(flags({ doc: { inner: null }, externalOpening: true }).otherApp, false);
+  assert.equal(flags({ doc: { inner: null, editable: true }, externalOpening: true }).edit, false);
+});

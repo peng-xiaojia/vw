@@ -88,18 +88,22 @@ export class DocumentTabs {
   cancelOpen() { return this.close(); }
   fail(...args) { return (this.active?.controller ?? this.empty).fail(...args); }
   pageStatus() { return (this.active?.controller ?? this.empty).pageStatus(); }
-  edit() { return this.closing ? Promise.resolve(false) : (this.active?.controller ?? this.empty).edit(); }
-  preview() { return this.closing ? Promise.resolve(false) : (this.active?.controller ?? this.empty).preview(); }
-  setDraft(text) { if (!this.closing) return (this.active?.controller ?? this.empty).setDraft(text); }
+  edit() { return this.closing || this.state.externalOpening ? Promise.resolve(false) : (this.active?.controller ?? this.empty).edit(); }
+  preview() { return this.closing || this.state.externalOpening ? Promise.resolve(false) : (this.active?.controller ?? this.empty).preview(); }
+  setDraft(text) { if (!this.closing && !this.state.externalOpening) return (this.active?.controller ?? this.empty).setDraft(text); }
   async setTextOptions(options) {
     const tab = this.active;
-    if (this.closing || !tab || !(await tab.controller.edit())) return false;
-    if (this.closing || !this.tabs.includes(tab)) return false;
+    if (this.closing || !tab || tab.controller.state.externalOpening || !(await tab.controller.edit())) return false;
+    if (this.closing || tab.controller.state.externalOpening || !this.tabs.includes(tab)) return false;
     tab.controller.setTextOptions(options); return true;
   }
-  reopenEncoding(encoding) { return this.closing ? Promise.resolve(false) : this.active?.controller.reopenEncoding(encoding); }
-  format(formatter) { return this.closing ? Promise.resolve(false) : this.active?.controller.format(formatter); }
-  save() { return this.closing ? Promise.resolve(false) : (this.active?.controller ?? this.empty).save(); }
+  reopenEncoding(encoding) { return this.closing || this.state.externalOpening ? Promise.resolve(false) : this.active?.controller.reopenEncoding(encoding); }
+  format(formatter) { return this.closing || this.state.externalOpening ? Promise.resolve(false) : this.active?.controller.format(formatter); }
+  save() { return this.closing || this.state.externalOpening ? Promise.resolve(false) : (this.active?.controller ?? this.empty).save(); }
+  openElsewhere(action) {
+    const tab = this.active;
+    return this.closing || !tab ? Promise.resolve(false) : tab.controller.openElsewhere(action, () => !this.closing && this.tabs.includes(tab));
+  }
   loadMore() { return (this.active?.controller ?? this.empty).loadMore(); }
   ensureBlock(index) { return (this.active?.controller ?? this.empty).ensureBlock(index); }
   search(query) { return this.closing ? Promise.resolve(false) : (this.active?.controller ?? this.empty).search(query); }

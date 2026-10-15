@@ -25,6 +25,12 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   const page = browser.contexts()[0].pages()[0]; await page.locator('#document-tabs').waitFor({ state: 'attached' });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   assert.equal(await page.evaluate(() => window.__TAURI__.app.getIdentifier()), 'dev.vw.test.editor');
+  assert.equal(await page.locator('#btn-other-app').isDisabled(), true);
+  assert.equal(await page.locator('#btn-terminal').isDisabled(), true);
+  assert.match(await page.evaluate(async () => {
+    try { await window.__TAURI__.core.invoke('vw_open_elsewhere', { handle: 'missing', action: 'terminal' }); return ''; }
+    catch (error) { return String(error); }
+  }), /未知 handle/);
   const open = filename => page.evaluate(async filename => (await import('./main.js')).openDocument(filename), filename);
   const draft = () => page.evaluate(async () => (await import('./main.js')).controller.state.draft);
   const cm = fn => page.locator('.CodeMirror').evaluate((el, source) => { const f = new Function('cm', source); return f(el.CodeMirror); }, fn);
@@ -32,6 +38,8 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     await page.locator('#top-menu summary').filter({ hasText: name }).click(); await page.locator(`#top-menu [data-action="${action}"]`).click();
   };
   assert.equal(await open(js), true);
+  assert.equal(await page.locator('#btn-other-app').isEnabled(), true);
+  assert.equal(await page.locator('#btn-terminal').isEnabled(), true);
   await page.locator('.CodeMirror').waitFor();
   assert.ok(await page.locator('.cm-keyword').count() > 0);
   await menu('编辑', 'edit'); await menu('编辑', 'format');
@@ -93,7 +101,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   assert.ok(await page.locator('#status-bar').evaluate((el, height) => el.getBoundingClientRect().bottom <= height, viewport.height));
   assert.deepEqual(errors, []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ passed: true, checks: [
-    'real WebView2 / IPC', 'bundled Prettier worker', 'code highlighting', 'replace all and undo/redo',
+    'real WebView2 / IPC', 'external tool buttons and invalid-handle IPC rejection', 'bundled Prettier worker', 'code highlighting', 'replace all and undo/redo',
     'line numbers and wrapping', 'binary view preserves draft', 'UTF-16 CRLF bytes and backup',
     'GBK reopen and UTF-8 LF save', 'per-tab undo history', 'find next and visible text navigation', 'DOC/XLS/DOCX/XLSX preview and binary', 'footer bounds',
   ] }, null, 2));

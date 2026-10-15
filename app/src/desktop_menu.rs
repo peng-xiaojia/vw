@@ -8,7 +8,8 @@ pub fn install(app: &tauri::App) -> tauri::Result<()> {
         .item(&item("folder", "打开文件夹…", "CmdOrCtrl+Shift+O")?)
         .text("associations", "关联格式…")
         .separator().item(&item("save", "保存", "CmdOrCtrl+S")?)
-        .text("export", "导出副本…").separator()
+        .text("export", "导出副本…")
+        .text("otherApp", "用其他软件打开…").text("terminal", "在终端打开").separator()
         .item(&item("close", "关闭文档", "CmdOrCtrl+W")?)
         .text("cancel", "取消打开").separator().text("quit", "退出").build()?;
     let edit = SubmenuBuilder::new(app, "编辑(&E)").text("edit", "编辑文档").text("preview", "预览文档")
@@ -25,7 +26,7 @@ pub fn install(app: &tauri::App) -> tauri::Result<()> {
     let plugins = SubmenuBuilder::new(app, "插件(&P)").text("plugins", "插件中心…").build()?;
     let help = SubmenuBuilder::new(app, "帮助(&H)").text("about", "关于 vw…").build()?;
     app.set_menu(MenuBuilder::new(app).items(&[&file, &edit, &view, &plugins, &help]).build()?)?;
-    update(app.handle(), &[ ("save".into(), false), ("export".into(), false), ("close".into(), false), ("edit".into(), false), ("preview".into(), false), ("cancel".into(), false)])?;
+    update(app.handle(), &[ ("save".into(), false), ("export".into(), false), ("close".into(), false), ("edit".into(), false), ("preview".into(), false), ("cancel".into(), false), ("otherApp".into(), false), ("terminal".into(), false)])?;
     Ok(())
 }
 

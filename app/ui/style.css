@@ -185,7 +185,7 @@ button.primary { color: #fff; background: var(--accent); border-color: var(--acc
 #document-mode { display: flex; flex: 0 0 auto; padding: 2px; margin: 0 10px; gap: 2px; border: 1px solid var(--line); border-radius: 5px; background: var(--code-bg); }
 #document-mode button { padding: 3px 9px; border: 0; border-radius: 3px; background: transparent; color: var(--muted); font-size: 12px; }
 #document-mode button[aria-pressed="true"] { background: var(--bg); color: var(--fg); box-shadow: 0 1px 3px #0002; }
-#document-body { flex: 1; min-height: 0; min-width: 0; display: flex; }
+#document-body { flex: 1; min-height: 0; min-width: 0; display: flex; position: relative; }
 #reading-area { min-width: 0; }
 #outline-panel { width: 230px; flex: 0 0 230px; overflow: auto; border-left: 1px solid var(--line); background: #fafbfc; }
 .outline-heading { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px 6px 12px; font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); }
@@ -239,7 +239,7 @@ button.primary { color: #fff; background: var(--accent); border-color: var(--acc
 @media (max-width: 520px) { #association-formats { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { #plugin-center { padding: 18px; } #sidebar { flex-basis: 230px; width: 230px; } }
 @media (max-width: 520px) { #sidebar { left: 46px; } }
-@media (max-width: 760px) { #window-title, #badge { display: none; } #top-menu { flex: 1; } .top-menu > summary { padding: 0 7px; } #window-controls button { width: 34px; } #outline-panel { position: absolute; z-index: 4; top: 34px; right: 0; bottom: 0; width: min(230px, 70vw); box-shadow: -5px 0 18px #0002; } }
+@media (max-width: 760px) { #window-title, #badge { display: none; } #top-menu { flex: 1; } .top-menu > summary { padding: 0 7px; } #window-controls button { width: 34px; } #outline-panel { position: absolute; z-index: 4; top: 0; right: 0; bottom: 0; width: min(230px, 70vw); box-shadow: -5px 0 18px #0002; } }
 
 /* A single footer keeps loading progress above the operating system taskbar. */
 #status-bar { flex: 0 0 32px; min-height: 32px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-top: 1px solid var(--line); background: #fff; color: var(--muted); font-size: 12px; }
@@ -351,3 +351,5 @@ button.primary { color: #fff; background: var(--accent); border-color: var(--acc
 #status-bar { flex: 0 0 auto; flex-wrap: wrap; padding-top: 4px; padding-bottom: 4px; gap: 5px 12px; }
 #status { flex: 1 1 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #mode-binary { padding: 2px 8px; font-size: 12px; }
+#document-external { display: flex; flex: 0 0 auto; gap: 4px; margin: 2px 8px 2px 0; }
+#document-external button { font-size: 12px; padding: 3px 8px; white-space: nowrap; }

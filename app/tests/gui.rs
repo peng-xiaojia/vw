@@ -1,7 +1,7 @@
 //! GUI 命令层测试：`*_impl` 函数与 CLI/MCP 共享同一 Session 行为。
 
 use std::sync::Arc;
-use vw_app::AppState;
+use vw_app::{AppState, ExternalAction};
 use vw_core::Registry;
 use vw_plugin_text::TextViewer;
 
@@ -61,6 +61,24 @@ fn gui_open_page_search_save_roundtrip() {
     s.close_impl(&info.handle).unwrap();
     // 关闭后句柄失效
     assert!(s.page_impl(&info.handle, 0, 1).is_err());
+}
+
+#[test]
+fn external_tools_resolve_only_live_source_handles_and_the_correct_directory() {
+    let s = AppState::new().unwrap();
+    let file = write("外部编辑 & dollar$ ; file.txt", b"original bytes\n");
+    let info = s.open_impl(file.to_str().unwrap(), None, None).unwrap();
+    let canonical = std::fs::canonicalize(&file).unwrap();
+    assert_eq!(s.external_target_impl(&info.handle, ExternalAction::OtherApp).unwrap(), canonical);
+    assert_eq!(s.external_target_impl(&info.handle, ExternalAction::Terminal).unwrap(), canonical.parent().unwrap());
+    let directory = s.open_impl(file.parent().unwrap().to_str().unwrap(), None, None).unwrap();
+    assert_eq!(s.external_target_impl(&directory.handle, ExternalAction::Terminal).unwrap(), canonical.parent().unwrap());
+    assert!(s.external_target_impl(&directory.handle, ExternalAction::OtherApp).is_err());
+    assert!(s.external_target_impl("missing", ExternalAction::Terminal).is_err());
+    s.close_impl(&info.handle).unwrap();
+    assert!(s.external_target_impl(&info.handle, ExternalAction::OtherApp).is_err());
+    assert_eq!(std::fs::read(&file).unwrap(), b"original bytes\n");
+    s.close_impl(&directory.handle).unwrap();
 }
 
 #[test]
@@ -147,6 +165,8 @@ fn gui_open_member_via_zip() {
         info.source_display
     );
     assert!(!info.editable);
+    assert!(s.external_target_impl(&info.handle, ExternalAction::OtherApp).is_err());
+    assert!(s.external_target_impl(&info.handle, ExternalAction::Terminal).is_err());
     assert!(s
         .save_impl(&info.handle, "must not modify archive")
         .is_err());

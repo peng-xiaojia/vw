@@ -15,6 +15,8 @@ use vw_protocol::{OpenOptions, PluginError, Source};
 mod file_associations;
 mod plugins;
 mod html_preview;
+mod external_open;
+pub use external_open::ExternalAction;
 
 /// 全局应用状态：一个 Session + 打开的文档句柄表。
 pub struct AppState {
@@ -98,6 +100,19 @@ fn info_of(handle: &str, doc: &OpenedDoc) -> DocInfo {
 }
 
 impl AppState {
+    /// Resolve only a live document source; never hand a materialized archive member to an editor.
+    pub fn external_target_impl(&self, handle: &str, action: ExternalAction) -> Result<PathBuf, PluginError> {
+        let doc = self.get(handle)?;
+        if doc.source.as_fs_path().is_none() { return Err(PluginError::unsupported("请先导出归档内文件，再打开副本")); }
+        let path = std::fs::canonicalize(&doc.path).map_err(PluginError::from)?;
+        match action {
+            ExternalAction::OtherApp if path.is_file() => Ok(path),
+            ExternalAction::OtherApp => Err(PluginError::unsupported("请选择要用其他软件打开的文件")),
+            ExternalAction::Terminal if path.is_dir() => Ok(path),
+            ExternalAction::Terminal => path.parent().map(Path::to_path_buf).ok_or_else(|| PluginError::unsupported("无法确定文件所在目录")),
+        }
+    }
+
     pub fn open_impl(
         &self,
         path: &str,
@@ -462,6 +477,19 @@ pub fn validate_external_url(url: &str) -> Result<tauri::Url, PluginError> {
     Ok(parsed)
 }
 #[tauri::command]
+async fn vw_open_elsewhere(state: tauri::State<'_, Arc<AppState>>, window: tauri::Window, handle: String, action: ExternalAction) -> Result<bool, String> {
+    let state = state.inner().clone();
+    #[cfg(windows)]
+    let owner = window.hwnd().map_err(|error| error.to_string())?.0 as usize;
+    #[cfg(not(windows))]
+    let owner = { let _ = window; 0 };
+    blocking(move || {
+        let path = state.external_target_impl(&handle, action)?;
+        external_open::launch(action, path, owner)
+    }).await
+}
+
+#[tauri::command]
 async fn vw_open_external(url: String) -> Result<(), String> {
     blocking(move || {
         let url = validate_external_url(&url)?;
@@ -676,6 +704,7 @@ pub fn run_app() -> tauri::Result<()> {
             vw_list_dir,
             vw_startup_paths,
             vw_open_external,
+            vw_open_elsewhere,
             vw_export
             ,plugins::vw_plugins
             ,plugins::vw_plugin_market

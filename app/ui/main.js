@@ -86,7 +86,7 @@ async function showEditorFind(replace = true) {
 }
 function alternateView(asViewer) {
   const doc = controller.state.doc;
-  if (doc && !controller.closing && !controller.state.saving) openDocument(doc.sourcePath, { inner: doc.inner, asViewer });
+  if (doc && !controller.closing && !controller.state.saving && !controller.state.externalOpening) openDocument(doc.sourcePath, { inner: doc.inner, asViewer });
 }
 function editorOption(option) {
   const enabled = codeEditor.toggle(option);
@@ -210,9 +210,9 @@ function render(state) {
     renderedBlocks = state.blocks.length;
   }
   if ($('editor').value !== state.draft) $('editor').value = state.draft;
-  $('editor').disabled = state.saving || state.opening || controller.closing;
+  $('editor').disabled = state.saving || state.opening || state.externalOpening || controller.closing;
   $('content').classList.toggle('hidden', state.editing || doc?.viewerId === 'html' || doc?.viewerId === 'text');
-  codeEditor.sync(controller.active, { ...state, locked: controller.closing });
+  codeEditor.sync(controller.active, { ...state, locked: controller.closing || state.externalOpening });
   $('editor-find').classList.toggle('hidden', changed || (!state.editing && doc?.viewerId !== 'text') || $('editor-find').classList.contains('hidden'));
   $('edit-replace').disabled = $('edit-replace-all').disabled = !state.editing || state.saving || controller.closing;
   $('mode-binary').disabled = !doc || doc.viewerId === 'dir' || state.saving || controller.closing;
@@ -239,6 +239,14 @@ function render(state) {
   $('document-mode').classList.toggle('hidden', !sourceModes || !doc.editable);
   $('mode-preview').setAttribute('aria-pressed', String(!state.editing));
   $('mode-source').setAttribute('aria-pressed', String(state.editing));
+  $('mode-source').disabled = !doc?.editable || state.saving || state.opening || state.externalOpening || controller.closing;
+  $('mode-preview').disabled = !doc || state.saving || state.opening || state.externalOpening || controller.closing;
+  const externalFlags = Object.fromEntries(menuStates(state));
+  $('btn-other-app').disabled = controller.closing || !externalFlags.otherApp;
+  $('btn-terminal').disabled = controller.closing || !externalFlags.terminal;
+  for (const id of ['mode-binary', 'edit-replace', 'edit-replace-all', 'save-encoding', 'line-ending', 'reopen-encoding']) {
+    if (state.externalOpening) $(id).disabled = true;
+  }
   $('btn-save').innerHTML = state.saving ? '保存中…' : '保存 <kbd>Ctrl+S</kbd>';
   for (const id of ['btn-file', 'btn-folder']) $(id).disabled = state.saving;
   $('btn-search').disabled = !doc || state.saving;
@@ -386,6 +394,8 @@ function wire() {
     if (action === 'binary') alternateView('hex');
     if (action === 'normal') alternateView(null);
     if (action === 'text') alternateView('text');
+    if (action === 'otherApp') controller.openElsewhere('other_app');
+    if (action === 'terminal') controller.openElsewhere('terminal');
     if (['lineNumbers', 'lineWrapping'].includes(action)) editorOption(action);
     if (action === 'close') { ++routeGeneration; controller.close(); }
     if (action === 'quit') tauri?.window?.getCurrentWindow().close().catch(error => controller.fail('无法关闭窗口', error));
@@ -415,6 +425,8 @@ function wire() {
   $('mode-source').addEventListener('click', async () => { if (await controller.edit()) codeEditor.focus(); });
   $('mode-preview').addEventListener('click', () => controller.preview());
   $('mode-binary').addEventListener('click', () => alternateView(controller.state.doc?.viewerId === 'hex' ? null : 'hex'));
+  $('btn-other-app').addEventListener('click', () => controller.openElsewhere('other_app'));
+  $('btn-terminal').addEventListener('click', () => controller.openElsewhere('terminal'));
   const codecs = [['utf-8', 'UTF-8'], ['utf-8-bom', 'UTF-8 BOM'], ['utf-16le', 'UTF-16 LE'], ['utf-16be', 'UTF-16 BE'], ['gbk', 'GBK'], ['gb18030', 'GB18030'], ['shift_jis', 'Shift-JIS'], ['big5', 'Big5'], ['windows-1252', 'Windows-1252']];
   for (const id of ['save-encoding', 'reopen-encoding']) for (const [value, label] of codecs) $(id).add(new Option(label, value));
   $('save-encoding').addEventListener('change', event => controller.setTextOptions({ encoding: event.target.value }));
@@ -422,7 +434,7 @@ function wire() {
   $('reopen-encoding').addEventListener('change', async event => { const encoding = event.target.value; event.target.value = ''; if (encoding) await controller.reopenEncoding(encoding); });
   $('edit-find-close').addEventListener('click', () => { $('editor-find').classList.add('hidden'); codeEditor.focus(); });
   for (const [id, replace, all] of [['edit-find-next', false, false], ['edit-replace', true, false], ['edit-replace-all', true, true]]) $(id).addEventListener('click', () => {
-    if (replace && (!controller.state.editing || controller.state.saving || controller.closing)) return;
+    if (replace && (!controller.state.editing || controller.state.saving || controller.state.externalOpening || controller.closing)) return;
     const result = codeEditor.find($('edit-query').value, $('edit-case').checked, replace ? $('edit-replacement').value : null, all);
     $('edit-find-result').textContent = all ? `已替换 ${result.count} 处 · 尚未保存` : result.count ? replace ? '已替换 1 处' : '已定位匹配项' : '未找到匹配项';
   });

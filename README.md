@@ -6,6 +6,8 @@
 
 设计规格见 [docs/superpowers/specs/2026-10-13-file-viewer-design.md](docs/superpowers/specs/2026-10-13-file-viewer-design.md)（当前 v1.4），实际能力和验收边界见 [桌面能力矩阵](docs/desktop-capabilities.md)。
 
+历史需求、Bug 修复、未完成事项及阶段验证见 [需求与 Bug 台账](docs/requirements-and-bug-history.md)。
+
 ## 布局
 
 ```

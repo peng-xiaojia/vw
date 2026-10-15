@@ -33,3 +33,16 @@ test('external tool actions require a local document and are disabled while laun
   assert.equal(flags({ doc: { inner: null }, externalOpening: true }).otherApp, false);
   assert.equal(flags({ doc: { inner: null, editable: true }, externalOpening: true }).edit, false);
 });
+
+test('open-in dropdown entries follow the same local-document rules', () => {
+  const flags = state => Object.fromEntries(menuStates(state));
+  assert.equal(flags({}).reveal, false);
+  assert.equal(flags({}).apps, false);
+  assert.equal(flags({ doc: { inner: null, viewerId: 'text' } }).reveal, true);
+  assert.equal(flags({ doc: { inner: null, viewerId: 'dir' } }).reveal, true);
+  assert.equal(flags({ doc: { inner: null, viewerId: 'dir' } }).apps, true);
+  assert.equal(flags({ doc: { inner: 'a.zip', viewerId: 'text' } }).reveal, false);
+  assert.equal(flags({ doc: { inner: 'a.zip', viewerId: 'text' } }).apps, false);
+  assert.equal(flags({ doc: { inner: null }, opening: true }).reveal, false);
+  assert.equal(flags({ doc: { inner: null }, saving: true }).apps, false);
+});

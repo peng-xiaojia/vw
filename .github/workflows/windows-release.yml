@@ -1,0 +1,90 @@
+name: Windows Release
+
+# 构建并发布 Windows 便携包与 NSIS 安装包。
+# 配置以下仓库 Secrets 后自动签名（见 docs/windows-signing.md）：
+#   本机证书模式：WINDOWS_CERTIFICATE_THUMBPRINT（证书及私钥需先装入 runner 的 CurrentUser/My，
+#     例如用 base64 的 PFX 通过 secrets.WINDOWS_CERTIFICATE_PFX 导入）
+#   云签名模式：VSIGN_CLI / VSIGN_SERVER / VSIGN_USER / VSIGN_CERT_HASH / VSIGN_KEY_PIN
+#     以及 SSIGNCODE_OPERATOR_DIR / SSIGNCODE_OPERATOR_FILE / SSIGNCODE_OPERATOR_STORE / SSIGNCODE_OPERATOR_PWD
+# 未配置任何签名 Secret 时产出未签名版本，manifest.json 如实记录 NotSigned。
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: windows-release-
+
+      - name: Import signing certificate (optional)
+        if: ${{ secrets.WINDOWS_CERTIFICATE_PFX != '' }}
+        env:
+          WINDOWS_CERTIFICATE_PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX))
+          $imported = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force)
+          Write-Output "Imported certificate $($imported.Thumbprint)"
+          "WINDOWS_CERTIFICATE_THUMBPRINT=$($imported.Thumbprint)" | Add-Content -Path $env:GITHUB_ENV
+          Remove-Item -LiteralPath $pfx -Force
+
+      - name: Build release
+        shell: pwsh
+        env:
+          VSIGN_CLI: ${{ secrets.VSIGN_CLI }}
+          VSIGN_SERVER: ${{ secrets.VSIGN_SERVER }}
+          VSIGN_USER: ${{ secrets.VSIGN_USER }}
+          VSIGN_CERT_HASH: ${{ secrets.VSIGN_CERT_HASH }}
+          VSIGN_KEY_PIN: ${{ secrets.VSIGN_KEY_PIN }}
+          SSIGNCODE_OPERATOR_DIR: ${{ secrets.SSIGNCODE_OPERATOR_DIR }}
+          SSIGNCODE_OPERATOR_FILE: ${{ secrets.SSIGNCODE_OPERATOR_FILE }}
+          SSIGNCODE_OPERATOR_STORE: ${{ secrets.SSIGNCODE_OPERATOR_STORE }}
+          SSIGNCODE_OPERATOR_PWD: ${{ secrets.SSIGNCODE_OPERATOR_PWD }}
+        run: |
+          $args = @('-NoProfile','-File','tools/windows/build-release.ps1')
+          if ($env:VSIGN_CLI) { $args += '-UseVSign' }
+          elseif ($env:WINDOWS_CERTIFICATE_THUMBPRINT) { $args += @('-CertificateThumbprint', $env:WINDOWS_CERTIFICATE_THUMBPRINT) }
+          if ($env:VSIGN_CLI -or $env:WINDOWS_CERTIFICATE_THUMBPRINT) { $args += '-RequireSigning' }
+          pwsh @args
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vw-windows
+          path: |
+            dist/windows/vw-windows-portable.zip
+            dist/windows/*-setup.exe
+            dist/windows/manifest.json
+            dist/windows/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/windows/vw-windows-portable.zip
+            dist/windows/*-setup.exe
+            dist/windows/SHA256SUMS.txt
+            dist/windows/manifest.json

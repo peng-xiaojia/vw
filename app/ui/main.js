@@ -241,9 +241,7 @@ function render(state) {
   $('mode-source').setAttribute('aria-pressed', String(state.editing));
   $('mode-source').disabled = !doc?.editable || state.saving || state.opening || state.externalOpening || controller.closing;
   $('mode-preview').disabled = !doc || state.saving || state.opening || state.externalOpening || controller.closing;
-  const externalFlags = Object.fromEntries(menuStates(state));
-  $('btn-other-app').disabled = controller.closing || !externalFlags.otherApp;
-  $('btn-terminal').disabled = controller.closing || !externalFlags.terminal;
+  for (const details of document.querySelectorAll('details.open-in')) renderOpenInMenu(details);
   for (const id of ['mode-binary', 'edit-replace', 'edit-replace-all', 'save-encoding', 'line-ending', 'reopen-encoding']) {
     if (state.externalOpening) $(id).disabled = true;
   }
@@ -371,11 +369,62 @@ async function incomingPaths(paths) {
   for (const path of paths.filter(path => typeof path === 'string' && path.trim())) await routePath(path);
 }
 
+function openInItems(flags) {
+  const entry = (attributes, label) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    for (const [key, value] of Object.entries(attributes)) button.dataset[key] = value;
+    button.textContent = label;
+    return button;
+  };
+  const flagFor = button => button.dataset.appId != null ? 'apps'
+    : { reveal: 'reveal', terminal: 'terminal', other_app: 'otherApp' }[button.dataset.action];
+  const buttons = [entry({ action: 'reveal' }, '文件资源管理器（默认）')];
+  for (const app of controller.state.externalApps ?? []) buttons.push(entry({ appId: app.id, appName: app.name }, app.name));
+  buttons.push(document.createElement('hr'), entry({ action: 'terminal' }, '在终端打开'), entry({ action: 'other_app' }, '其他软件…'));
+  for (const button of buttons) {
+    if (button.tagName === 'HR') continue;
+    button.disabled = controller.closing || controller.state.externalOpening || !flags[flagFor(button)];
+  }
+  return buttons;
+}
+
+function renderOpenInMenu(details) {
+  const popup = details.querySelector('.menu-popup');
+  if (!popup) return;
+  const flags = Object.fromEntries(menuStates(controller.state));
+  popup.replaceChildren(...openInItems(flags));
+}
+
+function wireOpenInMenu(details) {
+  details.addEventListener('toggle', () => {
+    if (!details.open) return;
+    for (const other of document.querySelectorAll('details.open-in')) if (other !== details) other.open = false;
+    for (const menu of document.querySelectorAll('.top-menu')) menu.open = false;
+    renderOpenInMenu(details);
+    controller.ensureExternalApps().then(() => { if (details.open) renderOpenInMenu(details); });
+  });
+  details.addEventListener('click', event => {
+    const button = event.target.closest('button[data-action], button[data-app-id]');
+    if (!button) return;
+    details.open = false;
+    if (button.disabled) return;
+    if (button.dataset.appId != null) controller.openInApp(button.dataset.appId, button.dataset.appName || '');
+    else controller.openElsewhere(button.dataset.action);
+  });
+}
+
 function wire() {
   for (const menu of document.querySelectorAll('.top-menu')) menu.addEventListener('toggle', () => {
-    if (menu.open) for (const other of document.querySelectorAll('.top-menu')) if (other !== menu) other.open = false;
+    if (menu.open) {
+      for (const other of document.querySelectorAll('.top-menu')) if (other !== menu) other.open = false;
+      for (const other of document.querySelectorAll('details.open-in')) other.open = false;
+    }
   });
-  document.addEventListener('pointerdown', event => { if (!event.target.closest('.top-menu')) for (const menu of document.querySelectorAll('.top-menu')) menu.open = false; });
+  document.addEventListener('pointerdown', event => {
+    if (!event.target.closest('.top-menu')) for (const menu of document.querySelectorAll('.top-menu')) menu.open = false;
+    if (!event.target.closest('details.open-in')) for (const details of document.querySelectorAll('details.open-in')) details.open = false;
+  });
   $('top-menu').addEventListener('click', event => {
     const button = event.target.closest('button[data-action]');
     if (!button) return;
@@ -396,6 +445,7 @@ function wire() {
     if (action === 'text') alternateView('text');
     if (action === 'otherApp') controller.openElsewhere('other_app');
     if (action === 'terminal') controller.openElsewhere('terminal');
+    if (action === 'reveal') controller.openElsewhere('reveal');
     if (['lineNumbers', 'lineWrapping'].includes(action)) editorOption(action);
     if (action === 'close') { ++routeGeneration; controller.close(); }
     if (action === 'quit') tauri?.window?.getCurrentWindow().close().catch(error => controller.fail('无法关闭窗口', error));
@@ -425,8 +475,7 @@ function wire() {
   $('mode-source').addEventListener('click', async () => { if (await controller.edit()) codeEditor.focus(); });
   $('mode-preview').addEventListener('click', () => controller.preview());
   $('mode-binary').addEventListener('click', () => alternateView(controller.state.doc?.viewerId === 'hex' ? null : 'hex'));
-  $('btn-other-app').addEventListener('click', () => controller.openElsewhere('other_app'));
-  $('btn-terminal').addEventListener('click', () => controller.openElsewhere('terminal'));
+  for (const details of document.querySelectorAll('details.open-in')) wireOpenInMenu(details);
   const codecs = [['utf-8', 'UTF-8'], ['utf-8-bom', 'UTF-8 BOM'], ['utf-16le', 'UTF-16 LE'], ['utf-16be', 'UTF-16 BE'], ['gbk', 'GBK'], ['gb18030', 'GB18030'], ['shift_jis', 'Shift-JIS'], ['big5', 'Big5'], ['windows-1252', 'Windows-1252']];
   for (const id of ['save-encoding', 'reopen-encoding']) for (const [value, label] of codecs) $(id).add(new Option(label, value));
   $('save-encoding').addEventListener('change', event => controller.setTextOptions({ encoding: event.target.value }));

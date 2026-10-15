@@ -25,8 +25,10 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   const page = browser.contexts()[0].pages()[0]; await page.locator('#document-tabs').waitFor({ state: 'attached' });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   assert.equal(await page.evaluate(() => window.__TAURI__.app.getIdentifier()), 'dev.vw.test.editor');
-  assert.equal(await page.locator('#btn-other-app').isDisabled(), true);
-  assert.equal(await page.locator('#btn-terminal').isDisabled(), true);
+  await page.locator('#btn-open-in-doc').click();
+  assert.equal(await page.locator('#document-external .menu-popup button[data-action="reveal"]').isDisabled(), true);
+  assert.equal(await page.locator('#document-external .menu-popup button[data-action="terminal"]').isDisabled(), true);
+  await page.locator('#document-info').click();
   assert.match(await page.evaluate(async () => {
     try { await window.__TAURI__.core.invoke('vw_open_elsewhere', { handle: 'missing', action: 'terminal' }); return ''; }
     catch (error) { return String(error); }
@@ -38,8 +40,10 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     await page.locator('#top-menu summary').filter({ hasText: name }).click(); await page.locator(`#top-menu [data-action="${action}"]`).click();
   };
   assert.equal(await open(js), true);
-  assert.equal(await page.locator('#btn-other-app').isEnabled(), true);
-  assert.equal(await page.locator('#btn-terminal').isEnabled(), true);
+  await page.locator('#btn-open-in-doc').click();
+  assert.equal(await page.locator('#document-external .menu-popup button[data-action="reveal"]').isEnabled(), true);
+  assert.equal(await page.locator('#document-external .menu-popup button[data-action="terminal"]').isEnabled(), true);
+  await page.locator('#document-info').click();
   await page.locator('.CodeMirror').waitFor();
   assert.ok(await page.locator('.cm-keyword').count() > 0);
   await menu('编辑', 'edit'); await menu('编辑', 'format');

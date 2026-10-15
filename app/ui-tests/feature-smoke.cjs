@@ -37,6 +37,8 @@ const server = http.createServer((request, response) => {
           if (command === 'vw_html_preview') return `${location.origin}/preview?text=${encodeURIComponent(args.text)}`;
           if (command === 'vw_open_external') { (window.externalOpens ??= []).push(args.url); return; }
           if (command === 'vw_open_elsewhere') { (window.toolCalls ??= []).push(args); if (window.delayTool) return new Promise(resolve => { window.finishTool = resolve; }); return true; }
+          if (command === 'vw_launch_external_app') { (window.toolCalls ??= []).push(args); if (window.delayTool) return new Promise(resolve => { window.finishTool = resolve; }); return true; }
+          if (command === 'vw_external_apps') return [{ id: 'code', name: 'VS Code', exe: 'C:\\tools\\Code.exe' }, { id: 'idea', name: 'IntelliJ IDEA', exe: 'C:\\tools\\idea64.exe' }];
           if (command === 'vw_list_dir') return { path: 'C:\\notes', parent: 'C:\\', entries: [] };
           if (command === 'vw_open') return { handle: args.path, path: args.path, sourceDisplay: args.path, title: args.path.split('\\').at(-1), viewerId: args.path.endsWith('.json') ? 'json' : args.path.endsWith('.md') ? 'markdown' : args.path.endsWith('.html') ? 'html' : 'text', editable: /\.(txt|md|html)$/i.test(args.path) };
           if (command === 'vw_page') {
@@ -66,19 +68,23 @@ const server = http.createServer((request, response) => {
     assert.equal(await page.locator('#btn-save').isDisabled(), true);
     assert.equal(await page.locator('#btn-export').isDisabled(), true);
     assert.equal(await page.locator('#btn-cancel').isDisabled(), true);
-    assert.equal(await page.locator('#btn-other-app').isDisabled(), true);
-    assert.equal(await page.locator('#btn-terminal').isDisabled(), true);
+    assert.equal(await page.locator('#top-menu [data-action="otherApp"]').isDisabled(), true);
+    assert.equal(await page.locator('#top-menu [data-action="reveal"]').isDisabled(), true);
     const save = await page.locator('#btn-save').boundingBox();
     assert.equal(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.id, [save.x + 15, save.y + save.height / 2]), 'btn-save');
     await page.locator('#btn-file').click();
     await page.evaluate(() => { window.delayTool = true; });
-    await page.locator('#btn-other-app').click();
+    await page.locator('#btn-open-in-doc').click();
+    await page.locator('#document-external .menu-popup button[data-action="other_app"]').click();
     await page.waitForFunction(() => window.finishTool);
-    assert.equal(await page.locator('#btn-other-app').isDisabled(), true);
-    assert.equal(await page.locator('#btn-terminal').isDisabled(), true);
+    await page.locator('#btn-open-in-doc').click();
+    assert.equal(await page.locator('#document-external .menu-popup button[data-action="other_app"]').isDisabled(), true);
+    assert.equal(await page.locator('#document-external .menu-popup button[data-action="terminal"]').isDisabled(), true);
+    await page.locator('#document-info').click();
     await page.evaluate(() => { window.finishTool(false); window.delayTool = false; });
-    await page.locator('#btn-other-app:enabled').waitFor();
-    await page.locator('#btn-terminal').click();
+    await page.locator('#btn-open-in-doc').click();
+    await page.locator('#document-external .menu-popup button[data-action="terminal"]:enabled').waitFor();
+    await page.locator('#document-external .menu-popup button[data-action="terminal"]').click();
     await page.waitForFunction(() => window.toolCalls.length === 2);
     assert.deepEqual(await page.evaluate(() => window.toolCalls.map(c => c.action)), ['other_app', 'terminal']);
     await page.locator('#top-menu summary').filter({ hasText: '视图' }).click();
@@ -185,20 +191,20 @@ const server = http.createServer((request, response) => {
     await htmlFrame.locator('h1').evaluate(element => element.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true })));
     await page.waitForFunction(() => document.querySelector('#html-preview-host iframe'));
     await htmlFrame.locator('html[style*="1.1"]').waitFor();
-    await page.locator('#btn-other-app').click();
-    await page.locator('#btn-other-app:enabled').waitFor();
-    await page.locator('#mode-source').click();
-    await page.locator('#btn-terminal').click();
-    await page.locator('#btn-terminal:enabled').waitFor();
-    assert.equal(await page.locator('#mode-preview').isDisabled(), false);
+    await page.locator('#btn-open-in-doc').click();
+    await page.locator('#document-external .menu-popup button[data-action="other_app"]:enabled').waitFor();
+    await page.locator('#document-external .menu-popup button[data-action="other_app"]').click();
+    await page.locator('#btn-open-in-doc').click();
+    await page.locator('#document-external .menu-popup button[data-action="terminal"]:enabled').waitFor();
+    await page.locator('#document-external .menu-popup button[data-action="terminal"]').click();
     await page.locator('#mode-preview').click();
     await page.setViewportSize({ width: 720, height: 600 });
     assert.ok(await page.locator('#document-external').evaluate(el => el.getBoundingClientRect().right <= innerWidth));
     assert.ok(await page.locator('#mode-source').evaluate(el => el.getBoundingClientRect().left >= 0));
-    for (const id of ['btn-other-app', 'btn-terminal', 'mode-source']) {
+    for (const id of ['mode-binary', 'mode-source', 'btn-open-in-doc']) {
       assert.equal(await page.locator(`#${id}`).evaluate(el => {
         const box = el.getBoundingClientRect();
-        return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.closest('button')?.id;
+        return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.closest('button, summary')?.id;
       }), id, 'outline panel must not cover document actions');
     }
     await page.screenshot({ path: 'target/ui-external-tools-narrow.png' });
@@ -206,7 +212,8 @@ const server = http.createServer((request, response) => {
     await page.keyboard.press('Control+Shift+Tab');
     assert.equal(await page.getByRole('tab', { selected: true }).textContent(), '● sample.md');
     const callsBeforeCancel = await page.evaluate(() => window.toolCalls.length);
-    await page.locator('#btn-other-app').click();
+    await page.locator('#btn-open-in-doc').click();
+    await page.locator('#document-external .menu-popup button[data-action="other_app"]').click();
     await page.locator('#dirty-dialog [data-choice="cancel"]').click();
     assert.equal(await page.evaluate(() => window.toolCalls.length), callsBeforeCancel);
     await page.keyboard.press('Control+w');

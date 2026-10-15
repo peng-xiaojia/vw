@@ -15,6 +15,7 @@
         <button id="btn-file" data-action="file" role="menuitem">打开文件… <kbd>Ctrl+O</kbd></button>
         <button id="btn-folder" data-action="folder" role="menuitem">打开文件夹… <kbd>Ctrl+Shift+O</kbd></button>
         <button data-action="associations" role="menuitem">关联格式…</button>
+        <button data-action="reveal" role="menuitem">在资源管理器中显示</button>
         <hr /><button id="btn-save" data-action="save" role="menuitem">保存 <kbd>Ctrl+S</kbd></button>
         <button id="btn-export" data-action="export" role="menuitem">导出副本…</button>
         <button data-action="otherApp" role="menuitem">用其他软件打开…</button>
@@ -61,7 +62,7 @@
         <p id="search-summary" class="side-caption">输入关键词搜索当前文档。</p><ul id="hits" class="nav-list"></ul>
       </section>
       <section id="panel-files" aria-label="文件导航">
-        <div class="tree-toolbar"><button id="btn-parent" title="上一级文件夹">↑ 上一级</button><button id="btn-refresh" title="刷新文件树">刷新</button></div>
+        <div class="tree-toolbar"><span class="tree-toolbar-actions"><button id="btn-parent" title="上一级文件夹">↑ 上一级</button><button id="btn-refresh" title="刷新文件树">刷新</button></span><details class="open-in"><summary id="btn-open-in-tree" title="用其他软件或终端打开当前文档" aria-label="用其他软件或终端打开当前文档"><img src="icons/folder-open.svg" alt="" class="ui-icon" /><span class="open-in-caret">▾</span></summary><div class="menu-popup open-in-popup" role="menu"></div></details></div>
         <div id="workspace-path" class="side-caption">尚未选择工作文件夹</div><div id="tree-message" class="side-caption" role="status"></div>
         <ul id="file-tree" aria-label="工作文件夹"></ul>
       </section>
@@ -69,7 +70,7 @@
     <div id="sidebar-resizer" class="pane-resizer hidden" role="separator" aria-label="调整左侧栏宽度" aria-orientation="vertical" tabindex="0"></div>
     <section id="document-area" aria-label="文档">
       <div id="document-tabs" role="tablist" aria-label="已打开的文件"></div>
-      <div id="document-heading"><button id="mode-binary" type="button" title="保留当前文档，打开独立二进制标签">二进制</button><span id="document-info">选择文件开始阅读</span><div id="document-mode" class="hidden" role="group" aria-label="文档模式"><button id="mode-preview" type="button" aria-pressed="true">展示</button><button id="mode-source" type="button" aria-pressed="false">源码</button></div><div id="document-external" role="group" aria-label="外部工具"><button id="btn-other-app" type="button" title="选择其他软件打开当前文件的已保存版本">其他软件打开…</button><button id="btn-terminal" type="button" title="在当前文件所在目录启动系统 PowerShell">在终端打开</button></div><button id="btn-outline" aria-label="文档目录" aria-controls="outline-panel" aria-expanded="false" title="文档目录"></button></div>
+      <div id="document-heading"><button id="mode-binary" type="button" title="保留当前文档，打开独立二进制标签">二进制</button><span id="document-info">选择文件开始阅读</span><div id="document-mode" class="hidden" role="group" aria-label="文档模式"><button id="mode-preview" type="button" aria-pressed="true">展示</button><button id="mode-source" type="button" aria-pressed="false">源码</button></div><div id="document-external" role="group" aria-label="外部工具"><details class="open-in"><summary id="btn-open-in-doc" title="用其他软件或终端打开当前文档" aria-label="用其他软件或终端打开当前文档"><img src="icons/folder-open.svg" alt="" class="ui-icon" /><span class="open-in-caret">▾</span></summary><div class="menu-popup open-in-popup" role="menu"></div></details></div><button id="btn-outline" aria-label="文档目录" aria-controls="outline-panel" aria-expanded="false" title="文档目录"></button></div>
       <div id="error-banner" class="hidden" role="alert"><span id="error-text"></span><button id="btn-dismiss-error" aria-label="关闭错误提示">×</button></div>
       <div id="empty-state"><div class="empty-icon">▤</div><h1>打开文件，开始阅读</h1><p>从「文件」菜单选择文件，或将文件拖到窗口中。</p><p class="keyboard-hint">Ctrl+O 打开文件 · Ctrl+Shift+O 打开文件夹 · Ctrl+F 搜索</p></div>
       <div id="document-body"><div id="reading-area"><section id="editor-find" class="hidden" aria-label="查找和替换">

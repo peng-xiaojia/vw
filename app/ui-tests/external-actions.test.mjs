@@ -12,6 +12,8 @@ function make({ choice = 'cancel', launch = async () => true, save = async () =>
     if (cmd === 'vw_snapshot') return 'disk\n';
     if (cmd === 'vw_save') return save();
     if (cmd === 'vw_open_elsewhere') return launch(args);
+    if (cmd === 'vw_launch_external_app') return launch(args);
+    if (cmd === 'vw_external_apps') return [{ id: 'code', name: 'VS Code', exe: 'C:\\tools\\Code.exe' }];
   } });
   return { tabs, calls };
 }
@@ -65,6 +67,34 @@ test('closing waits for a native chooser before releasing its source handle', as
 test('archive members cannot be handed out as temporary editable sources', async () => {
   const { tabs, calls } = make(); await tabs.open('a.zip', { inner: 'a.txt' });
   assert.equal(await tabs.openElsewhere('other_app'), false);
-  assert.equal(calls.some(([cmd]) => cmd === 'vw_open_elsewhere'), false);
+  assert.equal(await tabs.openElsewhere('reveal'), false);
+  assert.equal(await tabs.openInApp('code', 'VS Code'), false);
+  assert.equal(calls.some(([cmd]) => cmd === 'vw_open_elsewhere' || cmd === 'vw_launch_external_app'), false);
   assert.match(tabs.state.error, /导出/);
+});
+
+test('reveal reports the explorer hand-off without touching the draft', async () => {
+  const { tabs, calls } = make({ choice: 'discard' }); await tabs.open('a.txt'); await tabs.edit(); tabs.setDraft('draft');
+  assert.equal(await tabs.openElsewhere('reveal'), true);
+  assert.deepEqual(calls.find(([cmd]) => cmd === 'vw_open_elsewhere')[1], { handle: 'a.txt', action: 'reveal' });
+  assert.equal(tabs.state.draft, 'draft'); assert.equal(tabs.state.dirty, true);
+  assert.match(tabs.state.status, /文件资源管理器/);
+});
+
+test('known apps launch through the registry-resolved id and keep draft protection', async () => {
+  const { tabs, calls } = make({ choice: 'discard' }); await tabs.open('a.txt'); await tabs.edit(); tabs.setDraft('draft');
+  assert.equal(await tabs.openInApp('code', 'VS Code'), true);
+  assert.deepEqual(calls.find(([cmd]) => cmd === 'vw_launch_external_app')[1], { handle: 'a.txt', appId: 'code' });
+  assert.equal(tabs.state.draft, 'draft'); assert.equal(tabs.state.dirty, true);
+  assert.match(tabs.state.status, /已用 VS Code 打开 · 使用的是已保存版本/);
+});
+
+test('app detection is fetched once and cached on the controller', async () => {
+  const { tabs, calls } = make(); await tabs.open('a.txt');
+  const count = () => calls.filter(([cmd]) => cmd === 'vw_external_apps').length;
+  await tabs.ensureExternalApps();
+  assert.equal(count(), 1);
+  await tabs.ensureExternalApps();
+  assert.equal(count(), 1);
+  assert.deepEqual(tabs.state.externalApps, [{ id: 'code', name: 'VS Code', exe: 'C:\\tools\\Code.exe' }]);
 });

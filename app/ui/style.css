@@ -94,8 +94,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 #sidebar summary:hover { background: #f0f4fa; }
 #sidebar summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .side-caption { margin: 0; padding: 9px 12px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-.tree-toolbar { display: flex; justify-content: space-between; padding: 10px 10px 0; }
+.tree-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 10px 10px 0; }
 .tree-toolbar button { padding: 3px 8px; font-size: 12px; }
+.tree-toolbar-actions { display: flex; gap: 4px; min-width: 0; }
+.open-in { position: relative; flex: 0 0 auto; }
+.open-in > summary { list-style: none; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; padding: 4px 6px; border-radius: 5px; }
+.open-in > summary::-webkit-details-marker { display: none; }
+.open-in > summary:hover, .open-in[open] > summary { background: #e7f0ff; }
+.open-in-caret { font-size: 9px; line-height: 1; color: var(--muted); }
+.open-in-popup { left: auto; right: 0; top: calc(100% + 3px); min-width: 208px; max-height: min(60vh, 420px); overflow-y: auto; }
+#document-external .open-in > summary { padding: 5px 6px; }
 #file-tree, #file-tree ul, .nav-list { list-style: none; margin: 0; padding: 0; }
 #file-tree ul { padding-left: 16px; }
 #file-tree button, .nav-list button { width: 100%; text-align: left; background: transparent; border: 0; border-radius: 0; padding: 6px 12px; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
@@ -266,8 +274,8 @@ button.primary { color: #fff; background: var(--accent); border-color: var(--acc
 [data-theme="dark"] body, [data-theme="dark"] #activity-bar, [data-theme="dark"] #plugin-center { background: #202321; }
 [data-theme="dark"] #toolbar, [data-theme="dark"] #sidebar, [data-theme="dark"] #document-area, [data-theme="dark"] #status-bar, [data-theme="dark"] #outline-panel, [data-theme="dark"] .menu-popup, [data-theme="dark"] dialog, [data-theme="dark"] .plugin-card { background: #292e2a; color: var(--fg); }
 [data-theme="dark"] button, [data-theme="dark"] input, [data-theme="dark"] textarea, [data-theme="dark"] #editor, [data-theme="dark"] #plugin-spec, [data-theme="dark"] #plugin-filter, [data-theme="dark"] #query { background: #313832; color: var(--fg); border-color: var(--line); }
-[data-theme="dark"] .menu-popup button, [data-theme="dark"] #window-controls button, [data-theme="dark"] #activity-bar button, [data-theme="dark"] #btn-outline, [data-theme="dark"] #file-tree button, [data-theme="dark"] .nav-list button { background: transparent; color: var(--fg); }
-[data-theme="dark"] button:hover:not(:disabled), [data-theme="dark"] .top-menu[open] > summary, [data-theme="dark"] .top-menu > summary:hover, [data-theme="dark"] #file-tree button:hover, [data-theme="dark"] .nav-list button:hover { background: #3b463c; }
+[data-theme="dark"] .menu-popup button, [data-theme="dark"] #window-controls button, [data-theme="dark"] #activity-bar button, [data-theme="dark"] #btn-outline, [data-theme="dark"] #file-tree button, [data-theme="dark"] .nav-list button, [data-theme="dark"] .open-in > summary { background: transparent; color: var(--fg); }
+[data-theme="dark"] button:hover:not(:disabled), [data-theme="dark"] .top-menu[open] > summary, [data-theme="dark"] .top-menu > summary:hover, [data-theme="dark"] #file-tree button:hover, [data-theme="dark"] .nav-list button:hover, [data-theme="dark"] .open-in > summary:hover, [data-theme="dark"] .open-in[open] > summary { background: #3b463c; }
 [data-theme="dark"] .menu-popup button:disabled { color: #858d94; }
 [data-theme="dark"] #content pre, [data-theme="dark"] #content th, [data-theme="dark"] #content .inline-code, [data-theme="dark"] .plugin-tabs { background: var(--code-bg); }
 [data-theme="dark"] #content blockquote, [data-theme="dark"] .plugin-tabs button[aria-current] { background: #354038; }

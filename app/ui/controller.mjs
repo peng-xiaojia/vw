@@ -9,6 +9,14 @@ function storageText(draft, snapshot, explicit = null) {
   return normalized(draft).replace(/\n/gu, ending);
 }
 
+function externalStatus(action, appName, dirty) {
+  const saved = dirty ? ' · 使用的是已保存版本，当前草稿仍保留' : '';
+  if (action === 'terminal') return '已在终端打开所在目录';
+  if (action === 'reveal') return '已在文件资源管理器中显示';
+  if (action === 'app') return `已用 ${appName || '所选软件'} 打开${saved}`;
+  return `已用其他软件打开${saved}`;
+}
+
 export class DocumentController {
   constructor({ invoke, confirmDirty = async () => 'cancel', onChange = () => {}, pageSize = 40 }) {
     this.invoke = invoke;
@@ -21,11 +29,13 @@ export class DocumentController {
       searchLimited: false, requestGeneration: 0, revision: 0,
       opening: false, loading: false, saving: false, searching: false, exporting: false,
       formatting: false, externalOpening: false, saveEncoding: null, lineEnding: 'preserve',
+      externalApps: [],
       error: '', status: '打开文件或文件夹，也可以将文件拖到窗口中。',
     };
     this.pageRequest = null;
     this.saveRequest = null;
     this.guardRequest = null;
+    this.externalAppsRequested = false;
     this.searchGeneration = 0;
     this.navigationGeneration = 0;
   }
@@ -397,9 +407,9 @@ export class DocumentController {
     return true;
   }
 
-  openElsewhere(action, canProceed = () => true) {
+  openElsewhere(action, canProceed = () => true, extras = {}) {
     const doc = this.state.doc;
-    if (!doc || !['other_app', 'terminal'].includes(action) || this.externalRequest || this.state.saving || this.state.opening) return Promise.resolve(false);
+    if (!doc || !['other_app', 'terminal', 'reveal', 'app'].includes(action) || this.externalRequest || this.state.saving || this.state.opening) return Promise.resolve(false);
     if (doc.inner != null) { this.fail('无法外部打开', '请先导出归档内文件，再用其他软件或终端打开副本。'); return Promise.resolve(false); }
     if (action === 'other_app' && doc.viewerId === 'dir') return Promise.resolve(false);
     this.state.externalOpening = true; this.emit();
@@ -407,9 +417,11 @@ export class DocumentController {
       try {
         if (!(await this.guard({ skipExternal: true })) || this.state.doc !== doc || !canProceed()) return false;
         const previousStatus = this.state.status;
-        const opened = await this.invoke('vw_open_elsewhere', { handle: doc.handle, action });
+        const opened = action === 'app'
+          ? await this.invoke('vw_launch_external_app', { handle: doc.handle, appId: extras.appId })
+          : await this.invoke('vw_open_elsewhere', { handle: doc.handle, action });
         if (this.state.doc !== doc) return false;
-        this.state.status = opened ? (action === 'terminal' ? '已在终端打开所在目录' : `已用其他软件打开${this.state.dirty ? ' · 使用的是已保存版本，当前草稿仍保留' : ''}`) : previousStatus;
+        this.state.status = opened ? externalStatus(action, extras.appName, this.state.dirty) : previousStatus;
         if (opened) this.state.error = '';
         return Boolean(opened);
       } catch (error) { if (this.state.doc === doc) this.fail('外部打开失败', error); return false; }
@@ -418,6 +430,17 @@ export class DocumentController {
     this.externalRequest = request;
     request.finally(() => { if (this.externalRequest === request) this.externalRequest = null; });
     return request;
+  }
+
+  openInApp(appId, appName = '', canProceed = () => true) {
+    return this.openElsewhere('app', canProceed, { appId, appName });
+  }
+
+  async ensureExternalApps() {
+    if (this.externalAppsRequested) return;
+    this.externalAppsRequested = true;
+    try { this.state.externalApps = await this.invoke('vw_external_apps'); }
+    catch { this.state.externalApps = []; }
   }
 
   async exportCopy() {

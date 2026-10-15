@@ -15,5 +15,7 @@ export function menuStates(state) {
     normal: Boolean(doc && !state.saving), text: Boolean(doc && doc.viewerId !== 'dir' && !state.saving),
     otherApp: Boolean(doc && doc.inner == null && doc.viewerId !== 'dir' && !state.opening && !busy),
     terminal: Boolean(doc && doc.inner == null && !state.opening && !busy),
+    reveal: Boolean(doc && doc.inner == null && !state.opening && !busy),
+    apps: Boolean(doc && doc.inner == null && !state.opening && !busy),
   });
 }

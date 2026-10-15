@@ -110,6 +110,8 @@ impl AppState {
             ExternalAction::OtherApp => Err(PluginError::unsupported("请选择要用其他软件打开的文件")),
             ExternalAction::Terminal if path.is_dir() => Ok(path),
             ExternalAction::Terminal => path.parent().map(Path::to_path_buf).ok_or_else(|| PluginError::unsupported("无法确定文件所在目录")),
+            // Explorer reveals files and directories alike; known apps accept both.
+            ExternalAction::Reveal | ExternalAction::App => Ok(path),
         }
     }
 
@@ -490,6 +492,24 @@ async fn vw_open_elsewhere(state: tauri::State<'_, Arc<AppState>>, window: tauri
 }
 
 #[tauri::command]
+async fn vw_external_apps() -> Vec<external_open::ExternalApp> {
+    tauri::async_runtime::spawn_blocking(external_open::detect_apps).await.unwrap_or_default()
+}
+
+/// The app id is re-resolved against the registry at launch time; the webview never names an executable.
+#[tauri::command]
+async fn vw_launch_external_app(state: tauri::State<'_, Arc<AppState>>, handle: String, app_id: String) -> Result<bool, String> {
+    let state = state.inner().clone();
+    blocking(move || {
+        let path = state.external_target_impl(&handle, ExternalAction::App)?;
+        let app = external_open::detect_apps().into_iter().find(|app| app.id == app_id)
+            .ok_or_else(|| PluginError::internal("所选软件当前不可用，请重新打开菜单"))?;
+        external_open::launch_app(&app.exe, &path)?;
+        Ok(true)
+    }).await
+}
+
+#[tauri::command]
 async fn vw_open_external(url: String) -> Result<(), String> {
     blocking(move || {
         let url = validate_external_url(&url)?;
@@ -705,6 +725,8 @@ pub fn run_app() -> tauri::Result<()> {
             vw_startup_paths,
             vw_open_external,
             vw_open_elsewhere,
+            vw_external_apps,
+            vw_launch_external_app,
             vw_export
             ,plugins::vw_plugins
             ,plugins::vw_plugin_market

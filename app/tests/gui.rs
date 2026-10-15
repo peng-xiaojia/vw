@@ -71,12 +71,17 @@ fn external_tools_resolve_only_live_source_handles_and_the_correct_directory() {
     let canonical = std::fs::canonicalize(&file).unwrap();
     assert_eq!(s.external_target_impl(&info.handle, ExternalAction::OtherApp).unwrap(), canonical);
     assert_eq!(s.external_target_impl(&info.handle, ExternalAction::Terminal).unwrap(), canonical.parent().unwrap());
+    assert_eq!(s.external_target_impl(&info.handle, ExternalAction::Reveal).unwrap(), canonical);
+    assert_eq!(s.external_target_impl(&info.handle, ExternalAction::App).unwrap(), canonical);
     let directory = s.open_impl(file.parent().unwrap().to_str().unwrap(), None, None).unwrap();
     assert_eq!(s.external_target_impl(&directory.handle, ExternalAction::Terminal).unwrap(), canonical.parent().unwrap());
+    assert_eq!(s.external_target_impl(&directory.handle, ExternalAction::Reveal).unwrap(), canonical.parent().unwrap());
+    assert_eq!(s.external_target_impl(&directory.handle, ExternalAction::App).unwrap(), canonical.parent().unwrap());
     assert!(s.external_target_impl(&directory.handle, ExternalAction::OtherApp).is_err());
     assert!(s.external_target_impl("missing", ExternalAction::Terminal).is_err());
     s.close_impl(&info.handle).unwrap();
     assert!(s.external_target_impl(&info.handle, ExternalAction::OtherApp).is_err());
+    assert!(s.external_target_impl(&info.handle, ExternalAction::Reveal).is_err());
     assert_eq!(std::fs::read(&file).unwrap(), b"original bytes\n");
     s.close_impl(&directory.handle).unwrap();
 }

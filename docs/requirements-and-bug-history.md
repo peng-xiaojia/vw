@@ -75,7 +75,7 @@
 | REQ-032 | 增加“在终端打开”。 | 已实现：在文件父目录或目录标签本身启动系统 PowerShell。 | 只打开交互终端，不执行当前文件；特殊字符通过工作目录传递。真实终端交互待人工验收。 |
 | REQ-033 | 外部打开入口改为参考 JetBrains 的角标下拉：直接列出文件资源管理器（默认）与已安装的 VS Code / Android Studio / IntelliJ IDEA / PyCharm 等。 | 已实现：文件树工具栏与文档标题栏各有一个下拉，列出资源管理器显示、注册表检测到的常见编辑器、终端和其他软件；检测与启动都在 Rust 侧完成，启动时按 id 重新解析注册表，WebView 不得指定可执行文件路径。原系统应用选择器保留为“其他软件…”。 | 检测覆盖常见编辑器关键字，未安装时不显示对应项；启动外部软件后的自动刷新仍未实现。JS/Rust/Chromium/原生回归见第 6.3 节。 |
 | REQ-034 | 更换应用图标为用户提供的熊猫图。 | 已实现：以 1024px 原图经 `tauri icon` 生成全套桌面与 Store 图标（保留 panda-source.png 便于再生成），`icons/icon.ico` 同时作为 EXE 内嵌资源与 NSIS 安装包图标，debug 构建提取图标比对通过。 | 图源由用户提供，许可未随仓库声明；移动端图标目录未纳入仓库。 |
-| REQ-035 | 用 SignPath Foundation 的开源免费签名。 | 部分实现：公开仓库与 CI 构建已满足资格前提；新增 `-UseSignPath` 签名脚本（契约同 VSign）与 CI 自动接线，申请表草稿与获批后步骤见 [SignPath 申请材料](signpath-application.md)。 | 申请提交与人工审核需要仓库所有者完成；签名脚本参数获批后按官方文档校准；未获批前产物保持 NotSigned。 |
+| REQ-035 | 用 SignPath Foundation 的开源免费签名。 | 部分实现：公开仓库与 CI 构建已满足资格前提；新增 `-UseSignPath` 签名脚本（契约同 VSign）与 CI 自动接线，申请材料见 [SignPath 申请材料](signpath-application.md)。**2026-10-15 申请表已提交**，等待人工审核。 | 审核由 SignPath Foundation 判定；获批后按其文档校准签名脚本参数并配置 Secrets；未获批前产物保持 NotSigned。 |
 
 ## 4. Bug 修复记录
 

@@ -396,12 +396,24 @@ function renderOpenInMenu(details) {
   popup.replaceChildren(...openInItems(flags));
 }
 
+function positionOpenInPopup(details) {
+  const popup = details.querySelector('.menu-popup');
+  const summary = details.querySelector('summary');
+  if (!popup || !summary) return;
+  const rect = summary.getBoundingClientRect();
+  popup.style.top = `${Math.round(rect.bottom + 3)}px`;
+  popup.style.right = `${Math.max(8, Math.round(window.innerWidth - rect.right))}px`;
+  popup.style.left = 'auto';
+  popup.style.bottom = 'auto';
+}
+
 function wireOpenInMenu(details) {
   details.addEventListener('toggle', () => {
     if (!details.open) return;
     for (const other of document.querySelectorAll('details.open-in')) if (other !== details) other.open = false;
     for (const menu of document.querySelectorAll('.top-menu')) menu.open = false;
     renderOpenInMenu(details);
+    positionOpenInPopup(details);
     controller.ensureExternalApps().then(() => { if (details.open) renderOpenInMenu(details); });
   });
   details.addEventListener('click', event => {

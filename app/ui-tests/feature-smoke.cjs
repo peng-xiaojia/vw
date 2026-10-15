@@ -87,6 +87,11 @@ const server = http.createServer((request, response) => {
     await page.locator('#document-external .menu-popup button[data-action="terminal"]').click();
     await page.waitForFunction(() => window.toolCalls.length === 2);
     assert.deepEqual(await page.evaluate(() => window.toolCalls.map(c => c.action)), ['other_app', 'terminal']);
+    await page.locator('#btn-open-in-doc').click();
+    const docPopup = await page.locator('#document-external .menu-popup').boundingBox();
+    assert.ok(docPopup && docPopup.x + docPopup.width <= 1100, 'document popup must stay inside the window');
+    assert.equal(await page.locator('#document-external .menu-popup button[data-action="reveal"]').textContent(), '文件资源管理器（默认）');
+    await page.locator('#document-info').click();
     await page.locator('#top-menu summary').filter({ hasText: '视图' }).click();
     await page.locator('[data-action="appearance"]').click();
     await page.locator('[name="theme-mode"][value="dark"]').check();
@@ -103,6 +108,11 @@ const server = http.createServer((request, response) => {
     await page.mouse.move(splitter.x + 2, splitter.y + 100);
     await page.mouse.down(); await page.mouse.move(splitter.x + 102, splitter.y + 100); await page.mouse.up();
     assert.ok((await page.locator('#sidebar').boundingBox()).width > left.width + 80);
+    await page.locator('#btn-open-in-tree').click();
+    const treePopup = await page.locator('#panel-files .menu-popup').boundingBox();
+    const sideBox = await page.locator('#sidebar').boundingBox();
+    assert.ok(treePopup && treePopup.x >= sideBox.x - 1 && treePopup.x + treePopup.width <= sideBox.x + sideBox.width + 1, 'tree popup must stay inside the sidebar');
+    await page.locator('#document-info').click();
     await page.locator('#btn-sidebar').click();
     if (!(await page.locator('#outline-panel').isVisible())) await page.locator('#btn-outline').click();
     const right = await page.locator('#outline-panel').boundingBox();

@@ -16,7 +16,7 @@
 
 ## 2. 待人工完成（需要仓库所有者身份）
 
-> **状态更新（2026-10-15）：申请已提交。** 表单于当日通过 HubSpot 表单提交（申请内容与下述草稿一致，维护者按 GitHub 账号登记为 Xiaojia Peng，通知邮箱 jjiaper@qq.com），页面返回 "Form submitted"。等待 SignPath Foundation 人工审核结果。
+> **状态更新（2026-10-15）：申请已提交并获受理确认。** 表单于当日通过 HubSpot 表单提交（申请内容与下述草稿一致，维护者按 GitHub 账号登记为 Xiaojia Peng，通知邮箱 jjiaper@qq.com），页面返回 "Form submitted"。同日收到 SignPath Foundation 确认邮件：申请已收到，团队将在**几个工作日内**回复后续步骤或追问；如需补充信息会通过该邮箱联系。等待审核结果。
 
 1. 访问 [申请入口](https://signpath.org/apply.html)，用能代表项目的 GitHub 账号提交，同意条款。
 2. 申请表可参考以下内容填写：

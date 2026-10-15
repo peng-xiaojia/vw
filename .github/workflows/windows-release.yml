@@ -1,7 +1,8 @@
 name: Windows Release
 
 # 构建并发布 Windows 便携包与 NSIS 安装包。
-# 配置以下仓库 Secrets 后自动签名（见 docs/windows-signing.md）：
+# 配置以下仓库 Secrets 后自动签名（见 docs/windows-signing.md 与 docs/signpath-application.md）：
+#   SignPath（开源免费，获批后）：SIGNPATH_API_TOKEN / SIGNPATH_ORGANIZATION_ID / SIGNPATH_PROJECT_ID / SIGNPATH_SIGNING_POLICY_ID
 #   本机证书模式：WINDOWS_CERTIFICATE_THUMBPRINT（证书及私钥需先装入 runner 的 CurrentUser/My，
 #     例如用 base64 的 PFX 通过 secrets.WINDOWS_CERTIFICATE_PFX 导入）
 #   云签名模式：VSIGN_CLI / VSIGN_SERVER / VSIGN_USER / VSIGN_CERT_HASH / VSIGN_KEY_PIN
@@ -61,11 +62,16 @@ jobs:
           SSIGNCODE_OPERATOR_FILE: ${{ secrets.SSIGNCODE_OPERATOR_FILE }}
           SSIGNCODE_OPERATOR_STORE: ${{ secrets.SSIGNCODE_OPERATOR_STORE }}
           SSIGNCODE_OPERATOR_PWD: ${{ secrets.SSIGNCODE_OPERATOR_PWD }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_ID: ${{ secrets.SIGNPATH_PROJECT_ID }}
+          SIGNPATH_SIGNING_POLICY_ID: ${{ secrets.SIGNPATH_SIGNING_POLICY_ID }}
         run: |
           $args = @('-NoProfile','-File','tools/windows/build-release.ps1')
-          if ($env:VSIGN_CLI) { $args += '-UseVSign' }
+          if ($env:SIGNPATH_API_TOKEN) { $args += '-UseSignPath' }
+          elseif ($env:VSIGN_CLI) { $args += '-UseVSign' }
           elseif ($env:WINDOWS_CERTIFICATE_THUMBPRINT) { $args += @('-CertificateThumbprint', $env:WINDOWS_CERTIFICATE_THUMBPRINT) }
-          if ($env:VSIGN_CLI -or $env:WINDOWS_CERTIFICATE_THUMBPRINT) { $args += '-RequireSigning' }
+          if ($env:SIGNPATH_API_TOKEN -or $env:VSIGN_CLI -or $env:WINDOWS_CERTIFICATE_THUMBPRINT) { $args += '-RequireSigning' }
           pwsh @args
 
       - name: Upload artifacts

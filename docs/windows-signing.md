@@ -6,7 +6,7 @@ DBX 当前公开发布流程使用 [TrustAsia VSign](https://github.com/t8y2/dbx
 
 ## 本机证书
 
-将代码签名证书及私钥配置在 CurrentUser/My（私钥通常由硬件或服务保存），再运行：
+将代码签名证书及私钥配置在 CurrentUser/My（私钥通常由硬件或服务保存），再运行（`pwsh` 或系统自带 `powershell` 均可，脚本兼容两者）：
 
 ```powershell
 pwsh -NoProfile -File tools/windows/build-release.ps1 -CertificateThumbprint '<自己的证书指纹>' -RequireSigning
@@ -50,6 +50,6 @@ pwsh -NoProfile -File tools/windows/build-release.ps1 -UseVSign -RequireSigning
 ## 免费分发路径与限制（2026-10-14 核查）
 
 - **Microsoft Store + MSIX**：微软对通过商店提交的 MSIX 免费重签，用户从商店安装时不遇到 SmartScreen 下载提示。现有 NSIS EXE 不能直接享用这项重签；要另做 MSIX 包、验证文件关联与插件目录在包隔离下的行为，并通过商店审核。[微软签名选项](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)、[Tauri 的 MSIX 打包指南](https://learn.microsoft.com/en-us/windows/apps/dev-tools/winapp-cli/guides/tauri)
-- **SignPath Foundation**：对符合条件的开源项目免费提供代码签名，证书显示 SignPath Foundation，而不是项目作者。项目须公开发布、使用合格开源许可证、建立可核验的源码到二进制构建流程，并由维护者批准每次签名。当前本地仓库没有 Git remote，尚无法提交公开仓库与自动构建证据；申请是否获批由 SignPath 判断。[资格条款](https://signpath.org/terms.html)、[申请入口](https://signpath.org/apply.html)
+- **SignPath Foundation**：对符合条件的开源项目免费提供代码签名，证书显示 SignPath Foundation，而不是项目作者。仓库已公开且构建流程可核验，资格条件已满足；**申请提交与审核是人工环节**，材料草稿与获批后的接线步骤见 [SignPath 申请材料](signpath-application.md)。`build-release.ps1` 已支持 `-UseSignPath`（依赖 `tools/windows/signpath-sign.ps1`，获批后按 SignPath 文档校准参数），CI 检测到 `SIGNPATH_API_TOKEN` 即自动启用。[资格条款](https://signpath.org/terms.html)、[申请入口](https://signpath.org/apply.html)
 - **自签名**：本机开发和受管理设备可用，但对普通下载用户仍会显示风险提示。不能通过删掉文件下载标记或关闭 SmartScreen 代替公开可信签名。
 - **公开发行的个人签名**：Microsoft Artifact Signing Basic 约 $9.99/月，且个人身份地域限制当前为美国、加拿大；传统 OV 证书通常按年付费。签名建立发布者身份，SmartScreen 信誉仍需积累；EV 证书也不再保证首发免提示。[微软签名选项](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)、[SmartScreen 信誉说明](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)

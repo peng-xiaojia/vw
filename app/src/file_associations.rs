@@ -91,7 +91,7 @@ fn apply_at(hkcu: &winreg::RegKey, base: &str, exe: &std::path::Path, selected: 
         return Ok(());
     }
     let (app, _) = hkcu.create_subkey_with_flags(base, ACCESS).map_err(|error| write_error("创建关联注册", error))?;
-    app.set_value("FriendlyAppName", &"vw 文件查看器").map_err(|error| write_error("写入应用名称", error))?;
+    app.set_value("FriendlyAppName", &"熊猫查看器").map_err(|error| write_error("写入应用名称", error))?;
     let (command, _) = app.create_subkey_with_flags("shell\\open\\command", ACCESS).map_err(|error| write_error("创建打开命令", error))?;
     command.set_value("", &command_for(exe)).map_err(|error| write_error("写入打开命令", error))?;
     if app.open_subkey("SupportedTypes").is_ok() { app.delete_subkey_all("SupportedTypes").map_err(|error| write_error("更新格式列表", error))?; }
@@ -123,7 +123,7 @@ fn register_default_app_at(hkcu: &winreg::RegKey, exe: &std::path::Path, selecte
         return Ok(());
     }
     let (app, _) = hkcu.create_subkey_with_flags(capabilities, ACCESS).map_err(|e| registry_error("创建默认应用能力", e))?;
-    app.set_value("ApplicationName", &"vw 文件查看器").map_err(|e| registry_error("注册应用名称", e))?;
+    app.set_value("ApplicationName", &"熊猫查看器").map_err(|e| registry_error("注册应用名称", e))?;
     app.set_value("ApplicationDescription", &"本地文件查看器").map_err(|e| registry_error("注册应用说明", e))?;
     if app.open_subkey("FileAssociations").is_ok() { app.delete_subkey_all("FileAssociations").map_err(|e| registry_error("更新默认格式", e))?; }
     let (types, _) = app.create_subkey_with_flags("FileAssociations", ACCESS).map_err(|e| registry_error("创建默认格式", e))?;

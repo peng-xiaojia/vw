@@ -5,11 +5,63 @@ use std::time::UNIX_EPOCH;
 
 use vw_core::viewer::{Doc, Viewer};
 use vw_protocol::{
-    search_blocks, Align, Block, BlockList, Cursor, DocMeta, Inline, Manifest, OpenOptions, Outline, PageRange,
-    ProbeScore, PluginError, SearchHits, Source,
+    search_blocks, Align, Block, BlockList, Cursor, DocMeta, Inline, Manifest, OpenOptions,
+    Outline, PageRange, PluginError, ProbeScore, SearchHits, Source,
 };
 
 const ROWS_PER_BLOCK: usize = 500;
+
+/// Native directory navigation data. Paths are identities; display names never
+/// have to be parsed back from the viewer's table cells.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub size: Option<u64>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DirectoryListing {
+    pub path: String,
+    pub parent: Option<String>,
+    pub entries: Vec<DirectoryEntry>,
+}
+
+pub fn list_directory(path: &std::path::Path) -> Result<DirectoryListing, PluginError> {
+    let path = path.canonicalize().map_err(PluginError::from)?;
+    if !path.is_dir() {
+        return Err(PluginError::malformed("请求的路径不是目录"));
+    }
+    let mut entries = Vec::new();
+    for entry in std::fs::read_dir(&path).map_err(PluginError::from)? {
+        let entry = entry.map_err(PluginError::from)?;
+        let metadata = entry.metadata().map_err(PluginError::from)?;
+        entries.push(DirectoryEntry {
+            name: entry.file_name().to_string_lossy().into_owned(),
+            path: entry.path().display().to_string(),
+            is_dir: metadata.is_dir(),
+            size: if metadata.is_dir() {
+                None
+            } else {
+                Some(metadata.len())
+            },
+        });
+    }
+    entries.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+            .then_with(|| a.name.cmp(&b.name))
+            .then_with(|| a.path.cmp(&b.path))
+    });
+    Ok(DirectoryListing {
+        path: path.display().to_string(),
+        parent: path.parent().map(|p| p.display().to_string()),
+        entries,
+    })
+}
 
 pub struct DirViewer {
     manifest: Manifest,
@@ -40,7 +92,10 @@ fn list_entries(path: &std::path::Path) -> Result<Vec<Entry>, PluginError> {
         if md.is_dir() {
             out.push(Entry::Dir { name });
         } else {
-            out.push(Entry::File { name, size: md.len() });
+            out.push(Entry::File {
+                name,
+                size: md.len(),
+            });
         }
     }
     // 目录在前，各自按名称排序
@@ -148,10 +203,16 @@ impl Doc for DirDoc {
     fn page(&self, range: PageRange) -> Result<BlockList, PluginError> {
         let start = range.start as usize;
         if start >= self.blocks.len() {
-            return Ok(BlockList { blocks: vec![], total: Some(self.total) });
+            return Ok(BlockList {
+                blocks: vec![],
+                total: Some(self.total),
+            });
         }
         let end = (start + range.count as usize).min(self.blocks.len());
-        Ok(BlockList { blocks: self.blocks[start..end].to_vec(), total: Some(self.total) })
+        Ok(BlockList {
+            blocks: self.blocks[start..end].to_vec(),
+            total: Some(self.total),
+        })
     }
 
     fn search(&self, query: &str, from: Cursor) -> Result<SearchHits, PluginError> {
@@ -166,11 +227,17 @@ impl Viewer for DirViewer {
 
     fn probe(&self, source: &Source) -> Option<ProbeScore> {
         match source {
-            Source::Dir { .. } => Some(ProbeScore { score: 60, reason: "目录源".into() }),
+            Source::Dir { .. } => Some(ProbeScore {
+                score: 60,
+                reason: "目录源".into(),
+            }),
             Source::Path { path } => {
                 if path.is_dir() {
                     // 用户直接给了目录路径：仍可处理，但分低分
-                    Some(ProbeScore { score: 30, reason: "路径为目录".into() })
+                    Some(ProbeScore {
+                        score: 30,
+                        reason: "路径为目录".into(),
+                    })
                 } else {
                     // 快速嗅探确认不是我们该抢的：读一个字节都嫌多，直接放弃
                     let _ = std::fs::File::open(path).and_then(|mut f| {
@@ -191,7 +258,10 @@ impl Viewer for DirViewer {
             .ok_or_else(|| PluginError::malformed("dir 插件只支持本地路径源"))?
             .to_path_buf();
         if !path.is_dir() {
-            return Err(PluginError::malformed(format!("不是目录：{}", path.display())));
+            return Err(PluginError::malformed(format!(
+                "不是目录：{}",
+                path.display()
+            )));
         }
         let entries = list_entries(&path)?;
         let blocks = build_blocks(&path, &entries);
@@ -200,6 +270,11 @@ impl Viewer for DirViewer {
             .file_name()
             .map(|n| format!("{}/", n.to_string_lossy()))
             .or_else(|| Some(path.display().to_string()));
-        Ok(Box::new(DirDoc { viewer_id: self.viewer_id.clone(), blocks, title, total }))
+        Ok(Box::new(DirDoc {
+            viewer_id: self.viewer_id.clone(),
+            blocks,
+            title,
+            total,
+        }))
     }
 }

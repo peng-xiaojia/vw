@@ -1,2 +1,5 @@
 /target
+**/target/
+/dist/
+/output/playwright/
 /.cargo/config.toml

@@ -6,8 +6,8 @@
 use std::path::{Path, PathBuf};
 
 use vw_protocol::{
-    BlobRef, BlockList, Cursor, DocMeta, EditCapability, EditSnapshot, Manifest, OpenOptions, Outline, PageRange,
-    PluginError, ProbeScore, SearchHits, Source,
+    BlobRef, BlockList, Cursor, DocMeta, EditCapability, EditSnapshot, Manifest, OpenOptions,
+    Outline, PageRange, PluginError, ProbeScore, SearchHits, Source,
 };
 
 /// 插件对外的唯一入口。
@@ -39,10 +39,17 @@ pub trait Doc: Send + Sync {
 
     /// blob 引用相对会话临时目录；宿主负责校验路径边界（设计规格 §5.3）。
     fn blob(&self, _id: &str) -> Result<BlobRef, PluginError> {
-        Err(vw_protocol::PluginError::unsupported("该插件不提供 blob 资源"))
+        Err(vw_protocol::PluginError::unsupported(
+            "该插件不提供 blob 资源",
+        ))
     }
 
     fn close(&self) {}
+
+    /// Resource root owned by this document. Blob paths are relative to this directory.
+    fn blob_root(&self) -> Option<PathBuf> {
+        None
+    }
 
     /// 声明编辑能力时返回 `Some`；这是 `EditableDoc: Doc` 在 trait object 下的桥。
     fn as_editable(&self) -> Option<&dyn EditableDoc> {
@@ -63,5 +70,10 @@ pub trait EditableDoc: Doc {
 pub trait ArchiveSource: Viewer {
     /// 物化成员。`inner` 为归档内路径；返回可打开的本地文件路径。
     /// 实现必须执行 zip 炸弹防护（总量/单成员上限）。
-    fn materialize(&self, outer: &Path, inner: &str, dest_dir: &Path) -> Result<PathBuf, PluginError>;
+    fn materialize(
+        &self,
+        outer: &Path,
+        inner: &str,
+        dest_dir: &Path,
+    ) -> Result<PathBuf, PluginError>;
 }

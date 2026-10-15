@@ -115,7 +115,7 @@ fn merge_inline(runs: &mut Vec<Inline>, inline: Inline) {
     runs.push(inline);
 }
 
-fn parse_markdown(src: &str) -> Vec<Block> {
+pub fn parse_markdown(src: &str) -> Vec<Block> {
     let opts = Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH;
     let mut blocks: Vec<Block> = Vec::new();
     let mut stack: Vec<Ctx> = Vec::new();

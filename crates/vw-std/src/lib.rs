@@ -12,15 +12,28 @@ use vw_plugin_csv::CsvViewer;
 use vw_plugin_dir::DirViewer;
 use vw_plugin_hex::HexViewer;
 use vw_plugin_host::{HostConfig, HostViewer};
+use vw_plugin_image::ImageViewer;
 use vw_plugin_json::JsonViewer;
 use vw_plugin_markdown::MarkdownViewer;
+use vw_plugin_office::OfficeViewer;
+use vw_plugin_pdf::PdfViewer;
 use vw_plugin_text::TextViewer;
 use vw_protocol::{Manifest, PluginError, TransportKind};
+pub mod plugin_cmd;
 /// 注册全部内置插件。
 pub fn register_builtins(reg: &mut Registry) {
     reg.register(Arc::new(DirViewer::new(60)));
     reg.register(Arc::new(ArchiveViewer::new(55)));
-    reg.register(Arc::new(TextViewer::new(&["txt", "ini", "toml", "cfg"], 50)));
+    reg.register(Arc::new(ImageViewer::new(70)));
+    reg.register(Arc::new(OfficeViewer::new(75)));
+    if cfg!(windows) {
+        reg.register(Arc::new(PdfViewer::new(80)));
+    }
+    reg.register(Arc::new(TextViewer::new(
+        &["txt", "log", "ini", "toml", "cfg"],
+        50,
+    )));
+    reg.register(Arc::new(TextViewer::html()));
     reg.register(Arc::new(MarkdownViewer::new(&["md", "markdown"], 50)));
     reg.register(Arc::new(JsonViewer::new(&["json", "jsonl"], 50)));
     reg.register(Arc::new(CsvViewer::new(&["csv", "tsv"], 50)));
@@ -63,18 +76,29 @@ pub fn plugins_dir() -> PathBuf {
 
 /// 从目录装载外部 sidecar 插件（每个子目录一个 manifest.json）。
 /// 解析失败或校验不过的插件只告警不阻断。
-pub fn attach_external(reg: &mut Registry, dir: &std::path::Path) -> Result<Vec<Arc<HostViewer>>, PluginError> {
+pub fn attach_external(
+    reg: &mut Registry,
+    dir: &std::path::Path,
+) -> Result<Vec<Arc<HostViewer>>, PluginError> {
     let mut hosts = Vec::new();
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Ok(hosts);
     };
     for entry in entries.flatten() {
+        if entry.file_name().to_string_lossy().starts_with('.') {
+            continue;
+        }
         let manifest_path = entry.path().join("manifest.json");
-        let Ok(raw) = std::fs::read_to_string(&manifest_path) else { continue };
+        let Ok(raw) = std::fs::read_to_string(&manifest_path) else {
+            continue;
+        };
         let manifest: Manifest = match serde_json::from_str(&raw) {
             Ok(m) => m,
             Err(e) => {
-                eprintln!("warn: 跳过 {}：manifest 解析失败：{e}", entry.path().display());
+                eprintln!(
+                    "warn: 跳过 {}：manifest 解析失败：{e}",
+                    entry.path().display()
+                );
                 continue;
             }
         };
@@ -86,14 +110,14 @@ pub fn attach_external(reg: &mut Registry, dir: &std::path::Path) -> Result<Vec<
             continue;
         }
         let mut m2 = manifest.clone();
-        // 相对 executable 以插件目录为基准解析（不含占位符时）
+        // 先展开平台，再以安装目录解析，不能相对于 GUI 的启动目录。
         if let Some(exe) = &m2.transport.executable {
-            if !exe.contains("{platform}") {
-                let p = PathBuf::from(exe);
+                let expanded = exe.replace("{platform}", vw_plugin_host::platform_tag()).replace("{ext}", if cfg!(windows) { ".exe" } else { "" });
+                let p = PathBuf::from(expanded);
                 if p.is_relative() {
-                    m2.transport.executable = Some(entry.path().join(p).to_string_lossy().to_string());
+                    m2.transport.executable =
+                        Some(entry.path().join(p).to_string_lossy().to_string());
                 }
-            }
         }
         match HostViewer::from_manifest(m2, HostConfig::default()) {
             Ok(h) => {

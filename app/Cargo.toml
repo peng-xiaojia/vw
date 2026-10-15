@@ -23,6 +23,16 @@ serde_json = { workspace = true }
 vw-protocol = { workspace = true }
 vw-core = { workspace = true }
 vw-std = { workspace = true }
+vw-plugin-dir = { path = "../plugins/dir" }
+vw-plugin-markdown = { path = "../plugins/markdown" }
+tauri-plugin-single-instance = "2"
+rfd = "0.15"
+percent-encoding = "2"
+uuid = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_System_SystemInformation"] }
+winreg = "0.55"
 
 [dev-dependencies]
 vw-plugin-text = { workspace = true }

@@ -51,10 +51,9 @@ impl RpcViewer for SidecarText {
         let p = source
             .as_fs_path()
             .ok_or_else(|| PluginError::malformed("sidecar 示例只支持本地路径源"))?;
-        let bytes = std::fs::read(p)?;
         let title = p.file_name().map(|n| n.to_string_lossy().to_string());
         Ok(Box::new(SidecarTextDoc {
-            core: TextCore::from_bytes(&bytes, title),
+            core: TextCore::from_path(p, title)?,
             viewer_id: "textlog".into(),
         }))
     }
@@ -67,7 +66,7 @@ impl RpcDoc for SidecarTextDoc {
             mime: Some("text/plain".into()),
             size: Some(self.core.size),
             title: self.core.title.clone(),
-            pages: Some(self.core.total),
+            pages: self.core.total_pages(),
         }
     }
 

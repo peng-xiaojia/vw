@@ -253,14 +253,8 @@ fn run(cli: Cli) -> Result<(), PluginError> {
                 Ok(())
             }
             PluginAction::Remove { id } => {
-                let dir = vw_std::plugins_dir().join(&id);
-                if dir.is_dir() {
-                    std::fs::remove_dir_all(&dir)
-                        .map_err(|e| PluginError::internal(format!("删除失败：{e}")))?;
-                    println!("已卸载：{id}");
-                } else {
-                    return Err(PluginError::malformed(format!("未安装插件：{id}")));
-                }
+                plugin_cmd::plugin_remove(&id, &vw_std::plugins_dir())?;
+                println!("已卸载：{id}");
                 Ok(())
             }
             PluginAction::List => {

@@ -10,11 +10,31 @@
     "withGlobalTauri": true,
     "windows": [],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://vw-blob.localhost vw-blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src http://vw-preview.localhost vw-preview:; base-uri 'none'; form-action 'none'"
     }
   },
   "bundle": {
-    "active": false,
+    "resources": {
+      "../docs/licenses/dbx-LICENSE-apache-2.0.txt": "licenses/dbx-LICENSE-apache-2.0.txt",
+      "../app/ui/icons/LICENSE.txt": "licenses/lucide-LICENSE.txt",
+      "../docs/THIRD-PARTY-NOTICES.md": "licenses/THIRD-PARTY-NOTICES.md"
+    },
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "shortDescription": "本地文件查看器",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "../tools/windows/hooks.nsh",
+        "displayLanguageSelector": true,
+        "languages": [
+          "SimpChinese",
+          "English"
+        ]
+      }
+    },
     "icon": [
       "icons/icon.ico"
     ]

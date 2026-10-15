@@ -3,15 +3,17 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use vw_core::viewer::{Doc, EditableDoc, Viewer};
-use vw_protocol::{
-    block_list_from_value, BlockList, BlobRef, Cursor, DocMeta, EditCapability, EditSnapshot, Manifest, OpenOptions,
-    Outline, PageRange, PluginError, ProbeScore, SearchHits, Source, TransportKind,
-};
 use vw_plugin_sdk::{serve, RpcViewer};
+use vw_protocol::{
+    block_list_from_value, BlobRef, BlockList, Cursor, DocMeta, EditCapability, EditSnapshot,
+    Manifest, OpenOptions, Outline, PageRange, PluginError, ProbeScore, SearchHits, Source,
+    TransportKind,
+};
 
 use crate::conn::Conn;
 
@@ -25,7 +27,11 @@ pub struct HostConfig {
 impl Default for HostConfig {
     fn default() -> Self {
         // 设计规格 §9：probe 500ms / open 10s / page 5s
-        Self { probe_timeout: Duration::from_millis(500), open_timeout: Duration::from_secs(10), request_timeout: Duration::from_secs(5) }
+        Self {
+            probe_timeout: Duration::from_millis(500),
+            open_timeout: Duration::from_secs(10),
+            request_timeout: Duration::from_secs(5),
+        }
     }
 }
 
@@ -58,7 +64,9 @@ pub fn platform_tag() -> &'static str {
 
 fn resolve_executable(tpl: &str) -> PathBuf {
     let ext = if cfg!(windows) { ".exe" } else { "" };
-    let s = tpl.replace("{platform}", platform_tag()).replace("{ext}", ext);
+    let s = tpl
+        .replace("{platform}", platform_tag())
+        .replace("{ext}", ext);
     PathBuf::from(s)
 }
 
@@ -97,10 +105,20 @@ fn open_stderr_log(plugin_id: &str) -> Option<std::fs::File> {
     }
     let safe: String = plugin_id
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     let path = dir.join(format!("{safe}-{}.log", vw_core::date_stamp()));
-    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path).ok()?;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .ok()?;
     let _ = writeln!(f, "---- 会话开始 {} ----", vw_core::date_stamp());
     Some(f)
 }
@@ -142,7 +160,9 @@ impl HostViewer {
         Ok(Self {
             manifest,
             viewer_id,
-            spawn: Spawn::Process { executable: resolve_executable(&tpl) },
+            spawn: Spawn::Process {
+                executable: resolve_executable(&tpl),
+            },
             cfg,
             conn: Mutex::new(None),
             tmp_root: tmp_root(),
@@ -191,7 +211,13 @@ impl HostViewer {
                         executable.display()
                     )));
                 }
-                let child = Command::new(executable)
+                let mut command = Command::new(executable);
+                #[cfg(windows)]
+                {
+                    use std::os::windows::process::CommandExt;
+                    command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+                }
+                let child = command
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
@@ -214,10 +240,8 @@ impl HostViewer {
         Ok(conn)
     }
 
-    fn make_session_dir(&self) -> Result<PathBuf, PluginError> {
-        let dir = self.tmp_root.join(format!("sess-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).map_err(PluginError::from)?;
-        Ok(dir)
+    fn make_session_dir(&self) -> Result<vw_core::SessionTempDir, PluginError> {
+        vw_core::SessionTempDir::in_root(&self.tmp_root)
     }
 }
 
@@ -229,9 +253,7 @@ impl Viewer for HostViewer {
     fn probe(&self, source: &Source) -> Option<ProbeScore> {
         let conn = self.connect().ok()?;
         let params = serde_json::json!({ "source": source });
-        let result = conn
-            .request("probe", params, self.cfg.probe_timeout)
-            .ok()?;
+        let result = conn.request("probe", params, self.cfg.probe_timeout).ok()?;
         if result.is_null() {
             None
         } else {
@@ -241,7 +263,8 @@ impl Viewer for HostViewer {
 
     fn open(&self, source: &Source, opts: &OpenOptions) -> Result<Box<dyn Doc>, PluginError> {
         let conn = self.connect()?;
-        let tmp_dir = self.make_session_dir()?;
+        let temp = self.make_session_dir()?;
+        let tmp_dir = temp.path().to_path_buf();
         let params = serde_json::json!({
             "source": source,
             "opts": opts,
@@ -262,6 +285,8 @@ impl Viewer for HostViewer {
             conn,
             handle,
             tmp_dir,
+            _temp: temp,
+            closed: AtomicBool::new(false),
             cfg: self.cfg.clone(),
             meta,
             capability: OnceLock::new(),
@@ -273,13 +298,19 @@ struct HostDoc {
     conn: Arc<Conn>,
     handle: String,
     tmp_dir: PathBuf,
+    _temp: vw_core::SessionTempDir,
+    closed: AtomicBool,
     cfg: HostConfig,
     meta: DocMeta,
     capability: OnceLock<EditCapability>,
 }
 
 impl HostDoc {
-    fn request(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value, PluginError> {
+    fn request(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, PluginError> {
         self.conn.request(method, params, self.cfg.request_timeout)
     }
 
@@ -288,7 +319,10 @@ impl HostDoc {
             return c.clone();
         }
         let cap = self
-            .request("editCapability", serde_json::json!({ "handle": self.handle }))
+            .request(
+                "editCapability",
+                serde_json::json!({ "handle": self.handle }),
+            )
             .ok()
             .and_then(|v| serde_json::from_value::<EditCapability>(v).ok())
             .unwrap_or(EditCapability::None);
@@ -336,7 +370,10 @@ impl Doc for HostDoc {
     }
 
     fn blob(&self, id: &str) -> Result<BlobRef, PluginError> {
-        let v = self.request("blob", serde_json::json!({ "handle": self.handle, "id": id }))?;
+        let v = self.request(
+            "blob",
+            serde_json::json!({ "handle": self.handle, "id": id }),
+        )?;
         let r: BlobRef = serde_json::from_value(v).map_err(PluginError::from)?;
         // 核心侧路径校验：必须落在会话临时目录内（安全契约）
         self.check_blob_path(&r.path)?;
@@ -344,7 +381,13 @@ impl Doc for HostDoc {
     }
 
     fn close(&self) {
-        let _ = self.request("close", serde_json::json!({ "handle": self.handle }));
+        if !self.closed.swap(true, Ordering::SeqCst) {
+            let _ = self.request("close", serde_json::json!({ "handle": self.handle }));
+        }
+    }
+
+    fn blob_root(&self) -> Option<PathBuf> {
+        Some(self.tmp_dir.clone())
     }
 
     fn as_editable(&self) -> Option<&dyn EditableDoc> {
@@ -352,6 +395,12 @@ impl Doc for HostDoc {
             EditCapability::None => None,
             _ => Some(self),
         }
+    }
+}
+
+impl Drop for HostDoc {
+    fn drop(&mut self) {
+        self.close();
     }
 }
 
@@ -393,10 +442,17 @@ pub struct HostDiagnostics {
 impl HostViewer {
     pub fn diagnostics(&self) -> HostDiagnostics {
         let (crashed, stderr) = match self.conn.lock().unwrap().as_ref() {
-            Some(c) => (c.is_crashed(), c.stderr_tail.lock().unwrap().iter().cloned().collect()),
+            Some(c) => (
+                c.is_crashed(),
+                c.stderr_tail.lock().unwrap().iter().cloned().collect(),
+            ),
             None => (false, vec![]),
         };
-        HostDiagnostics { plugin_id: self.manifest.id.clone(), crashed, stderr }
+        HostDiagnostics {
+            plugin_id: self.manifest.id.clone(),
+            crashed,
+            stderr,
+        }
     }
 
     pub fn viewer_id(&self) -> &str {

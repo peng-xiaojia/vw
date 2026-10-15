@@ -54,31 +54,31 @@ impl BaselineSnap {
         std::thread::spawn(move || {
             let _ = tx.send(hash_stable(&path));
         });
-        Self { state: Mutex::new(HashState::Pending(rx)) }
+        Self {
+            state: Mutex::new(HashState::Pending(rx)),
+        }
     }
 
     fn ready(snap: Snapshot) -> Self {
-        Self { state: Mutex::new(HashState::Ready(snap)) }
+        Self {
+            state: Mutex::new(HashState::Ready(snap)),
+        }
     }
 
     fn get(&self) -> Result<Snapshot, PluginError> {
-        let taken = {
-            let mut st = self.state.lock().unwrap();
-            match &*st {
-                HashState::Ready(s) => return Ok(s.clone()),
-                HashState::Failed(e) => return Err(PluginError::internal(e.clone())),
-                HashState::Pending(_) => {
-                    std::mem::replace(&mut *st, HashState::Failed("unreachable".into()))
-                }
-            }
-        };
+        let mut st = self.state.lock().unwrap();
+        match &*st {
+            HashState::Ready(s) => return Ok(s.clone()),
+            HashState::Failed(e) => return Err(PluginError::internal(e.clone())),
+            HashState::Pending(_) => {}
+        }
+        let taken = std::mem::replace(&mut *st, HashState::Failed("基线哈希不可用".into()));
         match taken {
             HashState::Pending(rx) => {
                 let res = rx
                     .recv()
                     .map_err(|e| std::io::Error::other(format!("基线哈希线程意外退出：{e}")))
                     .and_then(|r| r);
-                let mut st = self.state.lock().unwrap();
                 match res {
                     Ok(s) => {
                         *st = HashState::Ready(s.clone());
@@ -97,8 +97,18 @@ impl BaselineSnap {
 }
 
 pub fn hash_file(path: &Path) -> std::io::Result<String> {
-    let bytes = fs::read(path)?;
-    Ok(blake3::hash(&bytes).to_string())
+    use std::io::Read;
+    let mut file = fs::File::open(path)?;
+    let mut hasher = blake3::Hasher::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buffer)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
+    Ok(hasher.finalize().to_string())
 }
 
 pub fn fingerprint(path: &Path) -> std::io::Result<(SystemTime, u64)> {
@@ -133,16 +143,16 @@ impl Baseline {
     pub fn after_write(path: PathBuf, bytes: &[u8]) -> std::io::Result<Baseline> {
         let (mtime, size) = fingerprint(&path)?;
         let hash = blake3::hash(bytes).to_string();
-        Ok(Baseline { path, snap: BaselineSnap::ready(Snapshot { mtime, size, hash }) })
+        Ok(Baseline {
+            path,
+            snap: BaselineSnap::ready(Snapshot { mtime, size, hash }),
+        })
     }
 
     /// 冲突检测：比对基线与磁盘现状。内容相同（例如仅被 touch）视为未变。
     pub fn check_unchanged(&self) -> Result<(), PluginError> {
         let snap = self.snap.get()?;
-        let (mtime, size) = fingerprint(&self.path).map_err(PluginError::from)?;
-        if mtime == snap.mtime && size == snap.size {
-            return Ok(());
-        }
+        // Equal metadata does not prove equal contents (copy tools may preserve timestamps).
         let cur_hash = hash_file(&self.path).map_err(PluginError::from)?;
         if cur_hash == snap.hash {
             return Ok(());
@@ -170,12 +180,18 @@ pub fn validate_source(src: &Source) -> Result<PathBuf, PluginError> {
     match src {
         Source::Dir { .. } => {
             if !canon.is_dir() {
-                return Err(PluginError::malformed(format!("不是目录：{}", canon.display())));
+                return Err(PluginError::malformed(format!(
+                    "不是目录：{}",
+                    canon.display()
+                )));
             }
         }
         _ => {
             if !canon.is_file() {
-                return Err(PluginError::malformed(format!("不是常规文件：{}", canon.display())));
+                return Err(PluginError::malformed(format!(
+                    "不是常规文件：{}",
+                    canon.display()
+                )));
             }
         }
     }
@@ -206,7 +222,10 @@ pub fn atomic_write(path: &Path, bytes: &[u8], backup: Backup) -> Result<SaveRep
         .filter(|d| !d.as_os_str().is_empty())
         .ok_or_else(|| PluginError::internal(format!("目标路径缺少父目录：{}", path.display())))?;
 
-    let mut report = SaveReport { bytes: bytes.len() as u64, backup: None };
+    let mut report = SaveReport {
+        bytes: bytes.len() as u64,
+        backup: None,
+    };
     if backup != Backup::None && path.exists() {
         let mut os = path.as_os_str().to_os_string();
         match backup {
@@ -247,4 +266,37 @@ pub fn atomic_write(path: &Path, bytes: &[u8], backup: Backup) -> Result<SaveRep
         PluginError::from(e)
     })?;
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn pending_baseline_supports_concurrent_waiters() {
+        let (tx, rx) = mpsc::channel();
+        let snap = std::sync::Arc::new(BaselineSnap {
+            state: Mutex::new(HashState::Pending(rx)),
+        });
+        let other = snap.clone();
+        let first = std::thread::spawn(move || other.get());
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        let (done_tx, done_rx) = mpsc::channel();
+        let second = std::thread::spawn(move || {
+            let result = snap.get();
+            done_tx.send(()).unwrap();
+            result
+        });
+        let early = done_rx
+            .recv_timeout(std::time::Duration::from_millis(100))
+            .is_ok();
+        tx.send(Ok(Snapshot {
+            mtime: SystemTime::now(),
+            size: 1,
+            hash: "same".into(),
+        }))
+        .unwrap();
+        assert_eq!(first.join().unwrap().unwrap().hash, "same");
+        assert_eq!(second.join().unwrap().unwrap().hash, "same");
+        assert!(!early, "all pending readers must wait for the hash");
+    }
 }

@@ -1,0 +1,11 @@
+[package]
+name = "vw-plugin-image"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Raster image viewer with session-scoped blob resources"
+
+[dependencies]
+vw-core.workspace = true
+vw-protocol.workspace = true
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }

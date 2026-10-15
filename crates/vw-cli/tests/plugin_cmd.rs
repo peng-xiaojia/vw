@@ -72,6 +72,69 @@ fn zip_slip_entries_rejected() {
     };
     assert_eq!(err.kind, vw_protocol::ErrorKind::PermissionDenied);
     assert!(!dir.join("evil.txt").exists());
+    assert!(!dir.join("dev.vw.demo").exists(), "失败不能留下部分安装");
+}
+
+#[test]
+fn package_id_and_windows_aliases_cannot_escape_or_overwrite() {
+    for (index, name) in ["C:escape", "file:stream", "dir/CON", "bin/../bad", "file.", "dir\\file"].iter().enumerate() {
+        let bytes = build_vwpkg("bad", &[("manifest.json", MANIFEST.as_bytes()), (name, b"bad")]);
+        let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("p4-path-{index}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(extract_vwpkg(&bytes, &dir).is_err(), "{name}");
+        assert!(!dir.join("dev.vw.demo").exists());
+    }
+    let manifest = MANIFEST.replace("dev.vw.demo", "../escape");
+    let bytes = build_vwpkg("bad", &[("manifest.json", manifest.as_bytes())]);
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("p4-id-escape");
+    assert!(extract_vwpkg(&bytes, &dir).is_err());
+}
+
+#[test]
+fn offline_install_requires_matching_sha256_and_keeps_existing_install() {
+    use vw_cli::plugin_cmd::prepare_local;
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("p4-offline");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let bytes = build_vwpkg("demo", &[("manifest.json", MANIFEST.as_bytes())]);
+    let file = dir.join("demo.vwpkg");
+    std::fs::write(&file, &bytes).unwrap();
+    assert!(prepare_local(&file).is_err());
+    std::fs::write(dir.join("demo.vwpkg.sha256"), sha256_hex(b"wrong")).unwrap();
+    assert!(prepare_local(&file).is_err());
+    std::fs::write(dir.join("demo.vwpkg.sha256"), sha256_hex(&bytes)).unwrap();
+    assert_eq!(prepare_local(&file).unwrap().manifest.id, "dev.vw.demo");
+    extract_vwpkg(&bytes, &dir.join("plugins")).unwrap();
+    assert!(extract_vwpkg(&bytes, &dir.join("plugins")).is_err());
+    assert_eq!(std::fs::read_to_string(dir.join("plugins/dev.vw.demo/manifest.json")).unwrap(), MANIFEST);
+}
+
+#[test]
+fn remove_rejects_parent_paths_and_uninstalls_only_matching_manifest() {
+    use vw_cli::plugin_cmd::plugin_remove;
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("p4-remove-boundary");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("keep.txt"), "keep").unwrap();
+    let bytes = build_vwpkg("demo", &[("manifest.json", MANIFEST.as_bytes())]);
+    extract_vwpkg(&bytes, &dir.join("plugins")).unwrap();
+    for id in ["..", ".", "../other", "C:/other"] { assert!(plugin_remove(id, &dir.join("plugins")).is_err()); }
+    assert_eq!(std::fs::read_to_string(dir.join("keep.txt")).unwrap(), "keep");
+    plugin_remove("dev.vw.demo", &dir.join("plugins")).unwrap();
+    assert!(!dir.join("plugins/dev.vw.demo").exists());
+}
+
+#[test]
+fn inconsistent_zip_sizes_are_rejected_without_partial_install() {
+    let mut bytes = build_vwpkg("demo", &[("manifest.json", MANIFEST.as_bytes()), ("payload.txt", b"small fixture payload")]);
+    // Fixture central directory advertises a shorter size than its actual entry.
+    let positions: Vec<_> = bytes.windows(4).enumerate().filter_map(|(i, b)| (b == b"PK\x01\x02").then_some(i)).collect();
+    let last = *positions.last().unwrap();
+    bytes[last + 24..last + 28].copy_from_slice(&1u32.to_le_bytes());
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("p4-size-mismatch");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(extract_vwpkg(&bytes, &dir).is_err());
+    assert!(!dir.join("dev.vw.demo").exists());
 }
 
 #[test]

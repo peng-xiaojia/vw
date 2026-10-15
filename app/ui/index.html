@@ -3,29 +3,85 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>vw —— 文件查看器</title>
+  <title>vw · 文件查看器</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header id="toolbar">
-    <input id="path" type="text" spellcheck="false" placeholder="输入文件/目录路径，如 G:\data\report.zip" />
-    <button id="btn-open">打开</button>
-    <span id="badge" class="badge">—</span>
-    <span class="spacer"></span>
-    <input id="query" type="text" spellcheck="false" placeholder="搜索…" />
-    <button id="btn-search">搜索</button>
-    <button id="btn-edit" class="hidden">编辑</button>
-    <button id="btn-save" class="hidden">保存</button>
+    <span class="app-name" data-tauri-drag-region>vw</span>
+    <nav id="top-menu" aria-label="主菜单">
+      <details class="top-menu"><summary>文件</summary><div class="menu-popup" role="menu">
+        <button id="btn-file" data-action="file" role="menuitem">打开文件… <kbd>Ctrl+O</kbd></button>
+        <button id="btn-folder" data-action="folder" role="menuitem">打开文件夹… <kbd>Ctrl+Shift+O</kbd></button>
+        <button data-action="associations" role="menuitem">关联格式…</button>
+        <hr /><button id="btn-save" data-action="save" role="menuitem">保存 <kbd>Ctrl+S</kbd></button>
+        <button id="btn-export" data-action="export" role="menuitem">导出副本…</button>
+        <button id="btn-cancel" data-action="cancel" role="menuitem">取消打开</button>
+        <hr /><button data-action="close" role="menuitem">关闭文档 <kbd>Ctrl+W</kbd></button>
+        <button data-action="quit" role="menuitem">退出</button>
+      </div></details>
+      <details class="top-menu"><summary>编辑</summary><div class="menu-popup" role="menu">
+        <button id="btn-edit" data-action="edit" role="menuitem">编辑文档</button>
+        <button id="btn-preview" data-action="preview" role="menuitem">预览文档</button>
+      </div></details>
+      <details class="top-menu"><summary>视图</summary><div class="menu-popup" role="menu">
+        <button data-action="sidebar" role="menuitem">显示 / 隐藏侧栏 <kbd>Ctrl+B</kbd></button>
+        <button data-action="files" role="menuitem">文件导航</button>
+        <button data-action="outline" role="menuitem">文档目录</button>
+        <button data-action="search" role="menuitem">文档内搜索 <kbd>Ctrl+F</kbd></button>
+        <hr /><button data-action="appearance" role="menuitem">外观设置…</button>
+      </div></details>
+      <details class="top-menu"><summary>插件</summary><div class="menu-popup" role="menu"><button data-action="plugins" role="menuitem">插件中心…</button></div></details>
+      <details class="top-menu"><summary>帮助</summary><div class="menu-popup" role="menu"><button data-action="about" role="menuitem">关于 vw…</button></div></details>
+    </nav>
+    <span id="window-title" data-tauri-drag-region>文件查看器</span>
+    <span id="badge" class="badge">未打开文档</span>
+    <div id="window-controls"><button id="btn-minimize" aria-label="最小化" title="最小化">−</button><button id="btn-maximize" aria-label="最大化" title="最大化">□</button><button id="btn-window-close" aria-label="关闭窗口" title="关闭">×</button></div>
   </header>
   <main id="main">
-    <aside id="sidebar" class="hidden">
-      <div class="side-title">搜索结果</div>
-      <ul id="hits"></ul>
+    <nav id="activity-bar" aria-label="侧边工具栏">
+      <button id="btn-sidebar" data-panel="files" aria-label="文件导航" aria-controls="sidebar" aria-expanded="false" title="文件导航 (Ctrl+B)"></button>
+      <button id="btn-find" data-panel="search" aria-label="文档内搜索" aria-controls="sidebar" aria-expanded="false" title="文档内搜索 (Ctrl+F)"></button>
+      <button id="btn-plugins" aria-label="插件中心" title="插件中心"></button>
+    </nav>
+    <aside id="sidebar" class="hidden" aria-label="文件及文档导航">
+      <div class="sidebar-heading"><strong id="sidebar-title">文件</strong><button id="btn-hide-sidebar" title="收起侧栏" aria-label="收起侧栏">×</button></div>
+      <section id="panel-search" class="hidden" aria-label="文档内搜索">
+        <form id="search-form"><input id="query" type="search" aria-label="文档内搜索" placeholder="搜索当前文档…" /><button id="btn-search">搜索</button></form>
+        <p id="search-summary" class="side-caption">输入关键词搜索当前文档。</p><ul id="hits" class="nav-list"></ul>
+      </section>
+      <section id="panel-files" aria-label="文件导航">
+        <div class="tree-toolbar"><button id="btn-parent" title="上一级文件夹">↑ 上一级</button><button id="btn-refresh" title="刷新文件树">刷新</button></div>
+        <div id="workspace-path" class="side-caption">尚未选择工作文件夹</div><div id="tree-message" class="side-caption" role="status"></div>
+        <ul id="file-tree" aria-label="工作文件夹"></ul>
+      </section>
     </aside>
-    <section id="content"></section>
-    <textarea id="editor" class="hidden" spellcheck="false"></textarea>
+    <div id="sidebar-resizer" class="pane-resizer hidden" role="separator" aria-label="调整左侧栏宽度" aria-orientation="vertical" tabindex="0"></div>
+    <section id="document-area" aria-label="文档">
+      <div id="document-tabs" role="tablist" aria-label="已打开的文件"></div>
+      <div id="document-heading"><span id="document-info">选择文件开始阅读</span><div id="document-mode" class="hidden" role="group" aria-label="文档模式"><button id="mode-preview" type="button" aria-pressed="true">展示</button><button id="mode-source" type="button" aria-pressed="false">源码</button></div><button id="btn-outline" aria-label="文档目录" aria-controls="outline-panel" aria-expanded="false" title="文档目录"></button></div>
+      <div id="error-banner" class="hidden" role="alert"><span id="error-text"></span><button id="btn-dismiss-error" aria-label="关闭错误提示">×</button></div>
+      <div id="empty-state"><div class="empty-icon">▤</div><h1>打开文件，开始阅读</h1><p>从「文件」菜单选择文件，或将文件拖到窗口中。</p><p class="keyboard-hint">Ctrl+O 打开文件 · Ctrl+Shift+O 打开文件夹 · Ctrl+F 搜索</p></div>
+      <div id="document-body"><div id="reading-area"><div id="html-preview-host" class="hidden"></div><section id="content" tabindex="0" aria-label="文档预览"></section><textarea id="editor" class="hidden" spellcheck="false" aria-label="文档编辑器"></textarea></div><div id="outline-resizer" class="pane-resizer hidden" role="separator" aria-label="调整文档目录宽度" aria-orientation="vertical" tabindex="0"></div><aside id="outline-panel" class="hidden" aria-label="文档目录"><div class="outline-heading"><strong>文档目录</strong><div class="outline-actions"><button id="outline-collapse-all" type="button" title="全部折叠" aria-label="全部折叠">⇤</button><button id="outline-expand-all" type="button" title="全部展开" aria-label="全部展开">⇥</button></div></div><p id="outline-empty" class="side-caption">打开文档后显示目录。</p><ul id="outline" class="nav-list"></ul></aside></div>
+    </section>
+    <section id="plugin-center" class="hidden" aria-label="插件中心">
+      <div class="plugin-heading"><div><h1>插件中心</h1><p>按需扩展文件格式，保持主程序轻量。</p></div><button id="btn-close-plugins" aria-label="关闭插件中心">返回文档 ×</button></div>
+      <nav class="plugin-tabs" aria-label="插件管理分区"><button data-section="market" aria-current="page">插件市场</button><button data-section="install">安装插件</button><button data-section="installed">已安装</button><button data-section="settings">设置</button></nav>
+      <p id="plugin-status" role="status" aria-live="polite"></p>
+      <section data-plugin-section="market"><div class="plugin-list-toolbar"><input id="market-query" type="search" aria-label="搜索插件市场" placeholder="搜索插件名称或格式…" /><button id="btn-market-search">搜索</button></div><form id="market-add-form" class="plugin-list-toolbar"><input id="market-repository" aria-label="添加 GitHub 插件仓库" placeholder="添加仓库：owner/repo" /><button>添加仓库</button></form><div id="market-list" aria-live="polite"></div><p>市场展示 GitHub 中标记 vw-plugin 的公开仓库及你添加的仓库。安装前会校验当前平台发布包的 SHA-256。</p><button id="btn-market-publish">发布插件…</button></section>
+      <section data-plugin-section="install"><h2>从 GitHub Releases 安装</h2><p>输入插件作者提供的仓库地址。自动选择当前平台的插件包并验证 SHA-256。</p><form id="plugin-install-form"><input id="plugin-spec" aria-label="GitHub 插件仓库" placeholder="github:owner/repo 或 github:owner/repo@v1.0.0" required /><button class="primary" id="btn-plugin-prepare">获取插件…</button></form><div class="plugin-local"><h2>安装本地插件包</h2><p>选择 .vwpkg 文件，同目录需有对应的 .vwpkg.sha256 校验文件。</p><button id="btn-plugin-local">选择插件包…</button></div></section>
+      <section data-plugin-section="installed" class="hidden"><div class="plugin-list-toolbar"><input id="plugin-filter" type="search" aria-label="筛选已安装插件" placeholder="搜索名称、格式或插件 ID…" /><button id="btn-plugin-refresh">刷新</button></div><div id="plugin-list"></div></section>
+      <section data-plugin-section="settings" class="hidden"><h2>安装位置</h2><p id="plugin-directory" class="plugin-path"></p><h2>分发方式</h2><p>市场发现带 vw-plugin 主题的 GitHub 仓库；安装使用 GitHub Releases 和本地 .vwpkg 包。DBX 的 .dbxp 包不能直接安装。</p><p id="plugin-platform"></p><h2>生效方式</h2><p>安装或卸载后，关闭程序并重新打开。当前文档可以继续阅读。</p><p>VW_PLUGIN_DIR 可覆盖插件目录；VW_PLUGIN_MIRROR 可配置下载镜像。</p></section>
+    </section>
   </main>
-  <footer id="status">就绪</footer>
+  <footer id="status-bar"><span id="status" role="status" aria-live="polite">就绪</span><div id="page-tools" class="hidden"><span id="page-progress"></span><button id="btn-more">加载更多</button></div></footer>
+  <div id="drop-overlay" class="hidden" aria-hidden="true">松开以打开文件或文件夹</div>
+  <dialog id="dirty-dialog" aria-labelledby="dirty-title"><h2 id="dirty-title">保存当前修改？</h2><p id="dirty-description"></p><div class="dialog-actions"><button data-choice="cancel">取消</button><button data-choice="discard">不保存</button><button data-choice="save" class="primary">保存</button></div></dialog>
+  <dialog id="plugin-dialog" aria-labelledby="plugin-confirm-title"><h2 id="plugin-confirm-title"></h2><div id="plugin-confirm-detail"></div><div class="dialog-actions"><button id="btn-plugin-cancel">取消</button><button id="btn-plugin-confirm" class="primary">安装</button></div></dialog>
+  <dialog id="publish-dialog" aria-labelledby="publish-title"><h2 id="publish-title">发布插件</h2><p>在仓库中添加 vw-plugin 主题，再在 GitHub Releases 上传当前平台的 .vwpkg 和同名 .vwpkg.sha256 文件。</p><label>GitHub 仓库 <input id="publish-repository" placeholder="owner/repo" /></label><p id="publish-error" role="alert"></p><div class="dialog-actions"><button id="btn-publish-cancel">取消</button><button id="btn-publish-open" class="primary">前往上传页面</button></div></dialog>
+  <dialog id="association-dialog" aria-labelledby="association-title"><h2 id="association-title">关联格式</h2><p>选择在 Windows「打开方式」中显示的格式。保存后可直接进入 vw 的默认应用页面。</p><p id="association-status" role="status" aria-live="polite"></p><div id="association-formats"></div><div class="association-tools"><button id="btn-association-all">全选</button><button id="btn-association-none">全不选</button></div><div class="dialog-actions"><button id="btn-association-defaults">设置 vw 为默认应用…</button><button id="btn-association-cancel">关闭</button><button id="btn-association-save" class="primary">保存</button></div></dialog>
+  <dialog id="appearance-dialog" aria-labelledby="appearance-title"><h2 id="appearance-title">外观设置</h2><fieldset class="theme-options"><legend>颜色模式</legend><label><input type="radio" name="theme-mode" value="system" /> 跟随系统</label><label><input type="radio" name="theme-mode" value="light" /> 日间</label><label><input type="radio" name="theme-mode" value="dark" /> 夜间</label><label><input type="radio" name="theme-mode" value="schedule" /> 按时间</label></fieldset><div id="theme-schedule"><label>夜间开始 <input id="theme-dark-hour" type="time" value="19:00" /></label><label>日间开始 <input id="theme-light-hour" type="time" value="07:00" /></label></div><fieldset class="document-options"><legend>阅读字体</legend><label>字体 <select id="document-font-family"><option value="system">系统无衬线</option><option value="serif">衬线字体</option><option value="mono">等宽字体</option></select></label><label>字号 <input id="document-font-size" type="range" min="12" max="28" step="1" value="15" /><output id="document-font-size-value">15 px</output></label></fieldset><form method="dialog" class="dialog-actions"><button>关闭</button></form></dialog>
+  <dialog id="about-dialog" aria-labelledby="about-title"><h2 id="about-title">vw · 文件查看器</h2><p>版本 0.1.0 · 本地文件预览和插件扩展。</p><p>桌面窗口：Tauri（MIT / Apache-2.0）<br />图标：Lucide（ISC / MIT）</p><p>插件中心参考 DBX（Apache-2.0），侧栏参考 VS Code（MIT）。</p><form method="dialog"><button>关闭</button></form></dialog>
   <script type="module" src="main.js"></script>
 </body>
 </html>

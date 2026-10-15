@@ -1,0 +1,13 @@
+[package]
+name = "vw-plugin-pdf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PDF read-only raster previews using the Windows PDF renderer"
+
+[dependencies]
+vw-core.workspace = true
+vw-protocol.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61.3", features = ["Data_Pdf", "Storage", "Storage_Streams", "Win32_System_WinRT"] }

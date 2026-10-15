@@ -45,6 +45,16 @@ fn view_json_output_is_ir() {
 }
 
 #[test]
+fn log_with_json_looking_prefix_stays_text() {
+    let f = write("events.log", b"{startup} service ready\nplain log line\n");
+    let out = vw().args(["view", f.to_str().unwrap()]).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("[viewer: text"), "{stdout}");
+    assert!(stdout.contains("plain log line"), "{stdout}");
+}
+
+#[test]
 fn view_missing_file_errors_with_kind() {
     let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("cli");
     let out = vw().args(["view", dir.join("nope.txt").to_str().unwrap()]).output().unwrap();

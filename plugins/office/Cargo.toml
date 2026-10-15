@@ -1,0 +1,12 @@
+[package]
+name = "vw-plugin-office"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Read-only bounded OOXML content previews"
+
+[dependencies]
+vw-core = { workspace = true }
+vw-protocol = { workspace = true }
+zip = { workspace = true }
+quick-xml = "0.42"

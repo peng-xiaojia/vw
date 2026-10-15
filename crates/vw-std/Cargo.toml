@@ -16,4 +16,12 @@ vw-plugin-csv = { path = "../../plugins/csv" }
 vw-plugin-hex = { path = "../../plugins/hex" }
 vw-plugin-dir = { path = "../../plugins/dir" }
 vw-plugin-archive = { path = "../../plugins/archive" }
+vw-plugin-image = { path = "../../plugins/image" }
+vw-plugin-pdf = { path = "../../plugins/pdf" }
+vw-plugin-office = { path = "../../plugins/office" }
 serde_json = { workspace = true }
+serde = { workspace = true }
+ureq = { workspace = true }
+zip = { workspace = true }
+sha2 = { workspace = true }
+percent-encoding = "2"

@@ -11,7 +11,7 @@ pub mod viewer;
 
 pub use policy::{atomic_write, capture_baseline, validate_source, Backup, Baseline, SaveReport};
 pub use registry::Registry;
-pub use session::{OpenedDoc, Session};
+pub use session::{OpenedDoc, Session, SessionTempDir};
 pub use viewer::{ArchiveSource, Doc, EditableDoc, Viewer};
 
 pub use vw_protocol::PluginError;

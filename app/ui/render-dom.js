@@ -1,42 +1,104 @@
 //! render/dom：IR → DOM 的唯一前端渲染器（设计规格 §4.3 / §5.2 纪律 2）。
 //! 每种块类型都必须有定义好的降级输出；未知块走 Error 形态。
+import { externalUrl, blobUrl } from './security.mjs';
+import { renderJsonTree } from './json-tree.mjs';
 
-export function renderInline(v) {
+export function renderInline(v, options = {}) {
   // v: IR Inline（serde tag "kind"）
   const el = document.createElement('span');
   switch (v.kind) {
     case 'text': el.textContent = v.text; return el;
-    case 'bold': { const b = document.createElement('strong'); b.append(renderInlineChildren(v.inner)); return b; }
-    case 'italic': { const i = document.createElement('em'); i.append(renderInlineChildren(v.inner)); return i; }
+    case 'bold': { const b = document.createElement('strong'); b.append(renderInlineChildren(v.inner, options)); return b; }
+    case 'italic': { const i = document.createElement('em'); i.append(renderInlineChildren(v.inner, options)); return i; }
     case 'code': { const c = document.createElement('code'); c.className = 'inline-code'; c.textContent = v.text; return c; }
-    case 'link': { const a = document.createElement('a'); a.textContent = renderInlineChildren(v.text).textContent; a.href = v.href; a.title = v.href; return a; }
+    case 'link': {
+      const url = externalUrl(v.href);
+      const a = document.createElement(url ? 'a' : 'span');
+      a.append(renderInlineChildren(v.text, options));
+      if (url) {
+        a.href = url;
+        a.title = url;
+        a.rel = 'noopener noreferrer';
+        a.draggable = false;
+        a.addEventListener('click', (event) => {
+          event.preventDefault();
+          return options.openExternal?.(url);
+        });
+        a.addEventListener('auxclick', event => event.preventDefault());
+        // Disable WebView context-menu navigation; normal clicks use the native opener.
+        a.addEventListener('contextmenu', event => event.preventDefault());
+      }
+      return a;
+    }
     case 'break': el.append(document.createElement('br')); return el;
     default: el.textContent = JSON.stringify(v); return el;
   }
 }
 
-function renderInlineChildren(list) {
+function renderInlineChildren(list, options = {}) {
   const frag = document.createDocumentFragment();
-  for (const item of list ?? []) frag.append(renderInline(item));
+  for (const item of list ?? []) frag.append(renderInline(item, options));
   return frag;
 }
 
-export function renderBlocks(blocks, target) {
+export function renderBlocks(blocks, target, options = {}) {
   const frag = document.createDocumentFragment();
-  for (const b of blocks ?? []) frag.append(renderBlock(b));
+  for (const [index, b] of (blocks ?? []).entries()) {
+    const element = renderBlock(b, options);
+    element.dataset.block = String((options.start ?? 0) + index);
+    frag.append(element);
+  }
   target.append(frag);
+  applyHeadingFolds(target);
 }
 
-function renderBlock(b) {
+function applyHeadingFolds(target) {
+  const blocks = [...target.children];
+  for (const element of blocks) {
+    if (element.dataset.irKind !== 'heading' || element.querySelector('.heading-fold')) continue;
+    const button = document.createElement('button'); button.className = 'heading-fold';
+    button.type = 'button'; button.setAttribute('aria-label', '折叠章节'); button.setAttribute('aria-expanded', 'true');
+    button.textContent = '▾';
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') !== 'true';
+      button.setAttribute('aria-expanded', String(expanded));
+      button.setAttribute('aria-label', expanded ? '折叠章节' : '展开章节');
+      button.textContent = expanded ? '▾' : '▸';
+      updateHeadingFolds(target);
+    });
+    element.prepend(button);
+  }
+  updateHeadingFolds(target);
+}
+
+function updateHeadingFolds(target) {
+  const stack = [];
+  for (const element of target.children) {
+    if (element.dataset.irKind === 'heading') {
+      const level = Number(element.tagName.slice(1));
+      while (stack.length && stack.at(-1).level >= level) stack.pop();
+      element.hidden = stack.some(item => item.folded);
+      stack.push({ level, folded: element.querySelector('.heading-fold')?.getAttribute('aria-expanded') === 'false' });
+    } else element.hidden = stack.some(item => item.folded);
+  }
+}
+
+function renderBlock(b, options = {}) {
+  const element = createBlock(b, options);
+  element.dataset.irKind = b.kind;
+  return element;
+}
+
+function createBlock(b, options = {}) {
   switch (b.kind) {
     case 'heading': {
       const h = document.createElement(`h${Math.min(Math.max(b.level, 1), 6)}`);
-      h.append(...b.text.map(renderInline));
+      h.append(renderInlineChildren(b.text, options));
       return h;
     }
     case 'para': {
       const p = document.createElement('p');
-      p.append(...b.text.map(renderInline));
+      p.append(renderInlineChildren(b.text, options));
       return p;
     }
     case 'list': {
@@ -45,15 +107,17 @@ function renderBlock(b) {
       l.className = 'ir-list';
       for (const item of b.items ?? []) {
         const li = document.createElement('li');
-        if (item.kind === 'para') li.append(...item.text.map(renderInline));
-        else if (item.kind === 'list') li.append(renderBlock(item));
-        else li.append(renderBlock(item));
+        if (item.kind === 'para') li.append(renderInlineChildren(item.text, options));
+        else li.append(renderBlock(item, options));
         l.append(li);
       }
       return l;
     }
-    case 'table': return renderTable(b);
+    case 'table': return renderTable(b, options);
     case 'code': {
+      if (b.lang === 'json') {
+        try { return renderJsonTree(b.text); } catch { /* Preserve source if a plugin supplied invalid JSON. */ }
+      }
       const pre = document.createElement('pre');
       if (b.lang) pre.dataset.lang = b.lang;
       pre.textContent = b.text;
@@ -64,24 +128,34 @@ function renderBlock(b) {
       for (const [k, v] of b.pairs ?? []) {
         const tr = document.createElement('tr');
         const td1 = document.createElement('td'); td1.textContent = k; td1.style.fontWeight = '600';
-        const td2 = document.createElement('td'); td2.append(renderInline(v));
+        const td2 = document.createElement('td'); td2.append(renderInline(v, options));
         tr.append(td1, td2); t.append(tr);
       }
       return t;
     }
     case 'quote': {
       const q = document.createElement('blockquote');
-      for (const inner of b.blocks ?? []) q.append(renderBlock(inner));
+      for (const inner of b.blocks ?? []) q.append(renderBlock(inner, options));
       return q;
     }
     case 'image': {
-      const p = document.createElement('p');
-      // v1：无 blob 通道的 GUI 图像由核心经自定义协议暴露；P2 先显示占位
-      const span = document.createElement('span');
-      span.textContent = `[图片 ${b.alt ?? ''}]`;
-      span.style.color = 'var(--muted)';
-      p.append(span);
-      return p;
+      const img = document.createElement('img');
+      const src = blobUrl(options.handle, b.blob, options.platform ?? globalThis.navigator?.platform ?? '');
+      img.alt = b.alt ?? '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.referrerPolicy = 'no-referrer';
+      if (src) img.src = src;
+      if (Number.isSafeInteger(b.w) && b.w > 0) img.width = b.w;
+      if (Number.isSafeInteger(b.h) && b.h > 0) img.height = b.h;
+      img.addEventListener('error', () => {
+        const fallback = document.createElement('p');
+        fallback.textContent = `图片无法加载${b.alt ? `：${b.alt}` : ''}`;
+        fallback.className = 'error-block';
+        fallback.dataset.block = img.dataset.block;
+        img.replaceWith(fallback);
+      });
+      return img;
     }
     case 'page_break': {
       const hr = document.createElement('hr');
@@ -115,7 +189,7 @@ function renderBlock(b) {
   }
 }
 
-function renderTable(b) {
+function renderTable(b, options = {}) {
   const t = document.createElement('table');
   const aligns = b.align ?? [];
   if (b.head) {
@@ -123,7 +197,7 @@ function renderTable(b) {
     const tr = document.createElement('tr');
     b.head.forEach((c, i) => {
       const th = document.createElement('th');
-      th.append(...c.map(renderInline));
+      th.append(renderInlineChildren(Array.isArray(c) ? c : [c], options));
       applyAlign(th, aligns[i]);
       tr.append(th);
     });
@@ -135,7 +209,7 @@ function renderTable(b) {
     const tr = document.createElement('tr');
     row.forEach((c, i) => {
       const td = document.createElement('td');
-      td.append(...c.map(renderInline));
+      td.append(renderInlineChildren(Array.isArray(c) ? c : [c], options));
       applyAlign(td, aligns[i]);
       tr.append(td);
     });

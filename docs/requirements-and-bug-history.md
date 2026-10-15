@@ -75,6 +75,7 @@
 | REQ-032 | 增加“在终端打开”。 | 已实现：在文件父目录或目录标签本身启动系统 PowerShell。 | 只打开交互终端，不执行当前文件；特殊字符通过工作目录传递。真实终端交互待人工验收。 |
 | REQ-033 | 外部打开入口改为参考 JetBrains 的角标下拉：直接列出文件资源管理器（默认）与已安装的 VS Code / Android Studio / IntelliJ IDEA / PyCharm 等。 | 已实现：文件树工具栏与文档标题栏各有一个下拉，列出资源管理器显示、注册表检测到的常见编辑器、终端和其他软件；检测与启动都在 Rust 侧完成，启动时按 id 重新解析注册表，WebView 不得指定可执行文件路径。原系统应用选择器保留为“其他软件…”。 | 检测覆盖常见编辑器关键字，未安装时不显示对应项；启动外部软件后的自动刷新仍未实现。JS/Rust/Chromium/原生回归见第 6.3 节。 |
 | REQ-034 | 更换应用图标为用户提供的熊猫图。 | 已实现：以 1024px 原图经 `tauri icon` 生成全套桌面与 Store 图标（保留 panda-source.png 便于再生成），`icons/icon.ico` 同时作为 EXE 内嵌资源与 NSIS 安装包图标，debug 构建提取图标比对通过。 | 图源由用户提供，许可未随仓库声明；移动端图标目录未纳入仓库。 |
+| REQ-035 | 用 SignPath Foundation 的开源免费签名。 | 部分实现：公开仓库与 CI 构建已满足资格前提；新增 `-UseSignPath` 签名脚本（契约同 VSign）与 CI 自动接线，申请表草稿与获批后步骤见 [SignPath 申请材料](signpath-application.md)。 | 申请提交与人工审核需要仓库所有者完成；签名脚本参数获批后按官方文档校准；未获批前产物保持 NotSigned。 |
 
 ## 4. Bug 修复记录
 
@@ -176,6 +177,8 @@
 | 2026-10-15 | `3f93e59` | 外部软件与终端打开入口，修复窄窗口目录遮挡。 |
 | 2026-10-15 | `eaa7d17` | 外部打开改为角标下拉并列出注册表检测的已装软件；附 Apache-2.0 LICENSE 与 Windows 发布工作流。 |
 | 2026-10-15 | `4961278` | 应用图标更换为熊猫形象，生成全套桌面图标并验证 EXE 内嵌。 |
+| 2026-10-15 | `9d71999` | 接入 SignPath 签名路径，打包脚本兼容 Windows PowerShell 5.1。 |
+| 2026-10-15 | `dc90fd2` | NSIS 安装程序图标改用熊猫 icon.ico。 |
 
 这些是功能收录的提交，不等同于每条需求首次提出或每个 Bug 的精确修复时间。
 
@@ -183,6 +186,7 @@
 
 - 编辑阶段：`dist/windows-20261015-editor/`。
 - 最新外部工具阶段：`dist/windows-20261015-external-tools/`，包含安装包、便携 ZIP、EXE、manifest 与 SHA-256 清单。
+- 当前交付包：`dist/windows/`（2026-10-15，对应 `dc90fd2`，`sourceDirty: false`），含熊猫图标的安装包、便携 ZIP、EXE、manifest 与 SHA-256 清单；未配置签名，manifest 如实记录 NotSigned。
 - 产物构建时源码未提交状态已在 manifest 记录为 `sourceDirty: true`；后续提交不会改变已生成包的字节。当前包仍为 `NotSigned`，SHA-256 不等于代码签名。
 
 以上为本机交付路径，可能不随 Git 分发；不得仅凭源码存在推断包已公开发布。

@@ -167,6 +167,9 @@ button.primary { color: #fff; background: var(--accent); border-color: var(--acc
 .top-menu[open] > summary, .top-menu > summary:hover { background: #e7edf5; }
 .menu-popup { position: absolute; z-index: 20; top: 100%; left: 0; min-width: 238px; padding: 5px; background: #fff; border: 1px solid var(--line); box-shadow: 0 9px 24px #0002; }
 .menu-popup button { display: flex; justify-content: space-between; align-items: center; gap: 18px; width: 100%; border: 0; border-radius: 3px; background: transparent; padding: 6px 10px; text-align: left; font-size: 13px; }
+.menu-popup button .menu-label { flex: 1; text-align: left; }
+.menu-popup button img { width: 16px; height: 16px; flex: 0 0 auto; }
+.app-logo { width: 18px; height: 18px; border-radius: 4px; }
 .menu-popup button:hover:not(:disabled), .menu-popup button:focus-visible { background: #e7f0ff; }
 .menu-popup hr { border: 0; border-top: 1px solid var(--line); margin: 5px 3px; }
 .menu-popup kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); white-space: nowrap; }

@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://vw-blob.localhost vw-blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src http://vw-preview.localhost vw-preview:; base-uri 'none'; form-action 'none'"
+      "csp": "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://vw-blob.localhost vw-blob: http://vw-icon.localhost vw-icon:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src http://vw-preview.localhost vw-preview:; base-uri 'none'; form-action 'none'"
     }
   },
   "bundle": {

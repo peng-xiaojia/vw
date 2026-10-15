@@ -24,7 +24,7 @@ pub fn install(app: &tauri::App) -> tauri::Result<()> {
         .text("binary", "以二进制查看").text("normal", "默认格式查看").text("text", "以文本查看")
         .separator().text("appearance", "外观设置…").build()?;
     let plugins = SubmenuBuilder::new(app, "插件(&P)").text("plugins", "插件中心…").build()?;
-    let help = SubmenuBuilder::new(app, "帮助(&H)").text("about", "关于 vw…").build()?;
+    let help = SubmenuBuilder::new(app, "帮助(&H)").text("about", "关于熊猫查看器…").build()?;
     app.set_menu(MenuBuilder::new(app).items(&[&file, &edit, &view, &plugins, &help]).build()?)?;
     update(app.handle(), &[ ("save".into(), false), ("export".into(), false), ("close".into(), false), ("edit".into(), false), ("preview".into(), false), ("cancel".into(), false), ("otherApp".into(), false), ("terminal".into(), false)])?;
     Ok(())

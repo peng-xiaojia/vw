@@ -104,11 +104,15 @@ export class DocumentTabs {
     const tab = this.active;
     return this.closing || !tab ? Promise.resolve(false) : tab.controller.openElsewhere(action, () => !this.closing && this.tabs.includes(tab));
   }
-  openInApp(appId, appName = '') {
+  launchAssociated(appId, appName = '') {
     const tab = this.active;
-    return this.closing || !tab ? Promise.resolve(false) : tab.controller.openInApp(appId, appName, () => !this.closing && this.tabs.includes(tab));
+    return this.closing || !tab ? Promise.resolve(false) : tab.controller.launchAssociated(appId, appName, () => !this.closing && this.tabs.includes(tab));
   }
-  ensureExternalApps() { return (this.active?.controller ?? this.empty).ensureExternalApps(); }
+  openInTerminal(terminalId, terminalName = '') {
+    const tab = this.active;
+    return this.closing || !tab ? Promise.resolve(false) : tab.controller.openInTerminal(terminalId, terminalName, () => !this.closing && this.tabs.includes(tab));
+  }
+  ensureOpenInChoices() { return (this.active?.controller ?? this.empty).ensureOpenInChoices(); }
   loadMore() { return (this.active?.controller ?? this.empty).loadMore(); }
   ensureBlock(index) { return (this.active?.controller ?? this.empty).ensureBlock(index); }
   search(query) { return this.closing ? Promise.resolve(false) : (this.active?.controller ?? this.empty).search(query); }

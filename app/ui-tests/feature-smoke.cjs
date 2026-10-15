@@ -37,8 +37,10 @@ const server = http.createServer((request, response) => {
           if (command === 'vw_html_preview') return `${location.origin}/preview?text=${encodeURIComponent(args.text)}`;
           if (command === 'vw_open_external') { (window.externalOpens ??= []).push(args.url); return; }
           if (command === 'vw_open_elsewhere') { (window.toolCalls ??= []).push(args); if (window.delayTool) return new Promise(resolve => { window.finishTool = resolve; }); return true; }
-          if (command === 'vw_launch_external_app') { (window.toolCalls ??= []).push(args); if (window.delayTool) return new Promise(resolve => { window.finishTool = resolve; }); return true; }
-          if (command === 'vw_external_apps') return [{ id: 'code', name: 'VS Code', exe: 'C:\\tools\\Code.exe' }, { id: 'idea', name: 'IntelliJ IDEA', exe: 'C:\\tools\\idea64.exe' }];
+          if (command === 'vw_launch_associated_app') { (window.toolCalls ??= []).push(args); if (window.delayTool) return new Promise(resolve => { window.finishTool = resolve; }); return true; }
+          if (command === 'vw_open_in_terminal') { (window.toolCalls ??= []).push(args); if (window.delayTool) return new Promise(resolve => { window.finishTool = resolve; }); return true; }
+          if (command === 'vw_associated_apps') return [{ id: 'code', name: 'VS Code', exe: 'C:\\tools\\Code.exe', iconKey: null, is_default: true }, { id: 'idea', name: 'IntelliJ IDEA', exe: 'C:\\tools\\idea64.exe', iconKey: null, is_default: false }];
+          if (command === 'vw_terminal_choices') return [{ id: 'powershell', name: 'PowerShell' }, { id: 'cmd', name: 'CMD' }];
           if (command === 'vw_list_dir') return { path: 'C:\\notes', parent: 'C:\\', entries: [] };
           if (command === 'vw_open') return { handle: args.path, path: args.path, sourceDisplay: args.path, title: args.path.split('\\').at(-1), viewerId: args.path.endsWith('.json') ? 'json' : args.path.endsWith('.md') ? 'markdown' : args.path.endsWith('.html') ? 'html' : 'text', editable: /\.(txt|md|html)$/i.test(args.path) };
           if (command === 'vw_page') {
@@ -79,14 +81,18 @@ const server = http.createServer((request, response) => {
     await page.waitForFunction(() => window.finishTool);
     await page.locator('#btn-open-in-doc').click();
     assert.equal(await page.locator('#document-external .menu-popup button[data-action="other_app"]').isDisabled(), true);
-    assert.equal(await page.locator('#document-external .menu-popup button[data-action="terminal"]').isDisabled(), true);
+    assert.equal(await page.locator('#document-external .menu-popup button[data-terminal="powershell"]').isDisabled(), true);
     await page.locator('#document-info').click();
     await page.evaluate(() => { window.finishTool(false); window.delayTool = false; });
     await page.locator('#btn-open-in-doc').click();
-    await page.locator('#document-external .menu-popup button[data-action="terminal"]:enabled').waitFor();
-    await page.locator('#document-external .menu-popup button[data-action="terminal"]').click();
+    await page.locator('#document-external .menu-popup button[data-terminal="powershell"]:enabled').waitFor();
+    await page.locator('#document-external .menu-popup button[data-terminal="powershell"]').click();
     await page.waitForFunction(() => window.toolCalls.length === 2);
-    assert.deepEqual(await page.evaluate(() => window.toolCalls.map(c => c.action)), ['other_app', 'terminal']);
+    assert.deepEqual(await page.evaluate(() => window.toolCalls.map(c => c.action || c.terminal)), ['other_app', 'powershell']);
+    await page.locator('#btn-open-in-doc').click();
+    await page.locator('#document-external .menu-popup button[data-app-id="code"]').click();
+    await page.waitForFunction(() => window.toolCalls.length === 3);
+    assert.deepEqual(await page.evaluate(() => window.toolCalls.at(-1)), { handle: 'C:\\notes\\draft.txt', appId: 'code' });
     await page.locator('#btn-open-in-doc').click();
     const docPopup = await page.locator('#document-external .menu-popup').boundingBox();
     assert.ok(docPopup && docPopup.x + docPopup.width <= 1100, 'document popup must stay inside the window');
@@ -205,8 +211,8 @@ const server = http.createServer((request, response) => {
     await page.locator('#document-external .menu-popup button[data-action="other_app"]:enabled').waitFor();
     await page.locator('#document-external .menu-popup button[data-action="other_app"]').click();
     await page.locator('#btn-open-in-doc').click();
-    await page.locator('#document-external .menu-popup button[data-action="terminal"]:enabled').waitFor();
-    await page.locator('#document-external .menu-popup button[data-action="terminal"]').click();
+    await page.locator('#document-external .menu-popup button[data-terminal="powershell"]:enabled').waitFor();
+    await page.locator('#document-external .menu-popup button[data-terminal="powershell"]').click();
     await page.locator('#mode-preview').click();
     await page.setViewportSize({ width: 720, height: 600 });
     assert.ok(await page.locator('#document-external').evaluate(el => el.getBoundingClientRect().right <= innerWidth));

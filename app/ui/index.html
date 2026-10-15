@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>vw · 文件查看器</title>
+  <title>熊猫查看器</title>
   <link rel="stylesheet" href="vendor/codemirror/codemirror.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header id="toolbar">
-    <span class="app-name" data-tauri-drag-region>vw</span>
+    <span class="app-name" data-tauri-drag-region><img src="icons/128x128.png" alt="" class="app-logo" />熊猫查看器</span>
     <nav id="top-menu" aria-label="主菜单">
       <details class="top-menu"><summary>文件</summary><div class="menu-popup" role="menu">
         <button id="btn-file" data-action="file" role="menuitem">打开文件… <kbd>Ctrl+O</kbd></button>
@@ -45,7 +45,7 @@
       <details class="top-menu"><summary>插件</summary><div class="menu-popup" role="menu"><button data-action="plugins" role="menuitem">插件中心…</button></div></details>
       <details class="top-menu"><summary>帮助</summary><div class="menu-popup" role="menu"><button data-action="about" role="menuitem">关于 vw…</button></div></details>
     </nav>
-    <span id="window-title" data-tauri-drag-region>文件查看器</span>
+    <span id="window-title" data-tauri-drag-region>熊猫查看器</span>
     <span id="badge" class="badge">未打开文档</span>
     <div id="window-controls"><button id="btn-minimize" aria-label="最小化" title="最小化">−</button><button id="btn-maximize" aria-label="最大化" title="最大化">□</button><button id="btn-window-close" aria-label="关闭窗口" title="关闭">×</button></div>
   </header>
@@ -100,7 +100,7 @@
   <dialog id="publish-dialog" aria-labelledby="publish-title"><h2 id="publish-title">发布插件</h2><p>在仓库中添加 vw-plugin 主题，再在 GitHub Releases 上传当前平台的 .vwpkg 和同名 .vwpkg.sha256 文件。</p><label>GitHub 仓库 <input id="publish-repository" placeholder="owner/repo" /></label><p id="publish-error" role="alert"></p><div class="dialog-actions"><button id="btn-publish-cancel">取消</button><button id="btn-publish-open" class="primary">前往上传页面</button></div></dialog>
   <dialog id="association-dialog" aria-labelledby="association-title"><h2 id="association-title">关联格式</h2><p>选择在 Windows「打开方式」中显示的格式。保存后可直接进入 vw 的默认应用页面。</p><p id="association-status" role="status" aria-live="polite"></p><div id="association-formats"></div><div class="association-tools"><button id="btn-association-all">全选</button><button id="btn-association-none">全不选</button></div><div class="dialog-actions"><button id="btn-association-defaults">设置 vw 为默认应用…</button><button id="btn-association-cancel">关闭</button><button id="btn-association-save" class="primary">保存</button></div></dialog>
   <dialog id="appearance-dialog" aria-labelledby="appearance-title"><h2 id="appearance-title">外观设置</h2><fieldset class="theme-options"><legend>颜色模式</legend><label><input type="radio" name="theme-mode" value="system" /> 跟随系统</label><label><input type="radio" name="theme-mode" value="light" /> 日间</label><label><input type="radio" name="theme-mode" value="dark" /> 夜间</label><label><input type="radio" name="theme-mode" value="schedule" /> 按时间</label></fieldset><div id="theme-schedule"><label>夜间开始 <input id="theme-dark-hour" type="time" value="19:00" /></label><label>日间开始 <input id="theme-light-hour" type="time" value="07:00" /></label></div><fieldset class="document-options"><legend>阅读字体</legend><label>字体 <select id="document-font-family"><option value="system">系统无衬线</option><option value="serif">衬线字体</option><option value="mono">等宽字体</option></select></label><label>字号 <input id="document-font-size" type="range" min="12" max="28" step="1" value="15" /><output id="document-font-size-value">15 px</output></label></fieldset><form method="dialog" class="dialog-actions"><button>关闭</button></form></dialog>
-  <dialog id="about-dialog" aria-labelledby="about-title"><h2 id="about-title">vw · 文件查看器</h2><p>版本 0.1.0 · 本地文件预览和插件扩展。</p><p>桌面窗口：Tauri（MIT / Apache-2.0）<br />图标：Lucide（ISC / MIT）</p><p>插件中心参考 DBX（Apache-2.0），侧栏参考 VS Code（MIT）。</p><form method="dialog"><button>关闭</button></form></dialog>
+  <dialog id="about-dialog" aria-labelledby="about-title"><h2 id="about-title">熊猫查看器 · 本地文件查看器</h2><p>版本 0.1.0 · 本地文件预览和插件扩展。</p><p>桌面窗口：Tauri（MIT / Apache-2.0）<br />图标：Lucide（ISC / MIT）</p><p>插件中心参考 DBX（Apache-2.0），侧栏参考 VS Code（MIT）。</p><form method="dialog"><button>关闭</button></form></dialog>
   <script src="vendor/codemirror/codemirror.js"></script>
 <script src="vendor/codemirror/simple.js"></script>
 <script src="vendor/codemirror/meta.js"></script>

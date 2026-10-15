@@ -12,8 +12,10 @@ function make({ choice = 'cancel', launch = async () => true, save = async () =>
     if (cmd === 'vw_snapshot') return 'disk\n';
     if (cmd === 'vw_save') return save();
     if (cmd === 'vw_open_elsewhere') return launch(args);
-    if (cmd === 'vw_launch_external_app') return launch(args);
-    if (cmd === 'vw_external_apps') return [{ id: 'code', name: 'VS Code', exe: 'C:\\tools\\Code.exe' }];
+    if (cmd === 'vw_launch_associated_app') return launch(args);
+    if (cmd === 'vw_associated_apps') return [{ id: 'code', name: 'VS Code', exe: 'C:\\tools\\Code.exe', iconKey: null, is_default: true }];
+    if (cmd === 'vw_terminal_choices') return [{ id: 'cmd', name: 'CMD' }, { id: 'powershell', name: 'PowerShell' }];
+    if (cmd === 'vw_open_in_terminal') return launch(args);
   } });
   return { tabs, calls };
 }
@@ -68,8 +70,9 @@ test('archive members cannot be handed out as temporary editable sources', async
   const { tabs, calls } = make(); await tabs.open('a.zip', { inner: 'a.txt' });
   assert.equal(await tabs.openElsewhere('other_app'), false);
   assert.equal(await tabs.openElsewhere('reveal'), false);
-  assert.equal(await tabs.openInApp('code', 'VS Code'), false);
-  assert.equal(calls.some(([cmd]) => cmd === 'vw_open_elsewhere' || cmd === 'vw_launch_external_app'), false);
+  assert.equal(await tabs.launchAssociated('code', 'VS Code'), false);
+  assert.equal(await tabs.openInTerminal('cmd', 'CMD'), false);
+  assert.equal(calls.some(([cmd]) => cmd === 'vw_open_elsewhere' || cmd === 'vw_launch_associated_app' || cmd === 'vw_open_in_terminal'), false);
   assert.match(tabs.state.error, /导出/);
 });
 
@@ -83,18 +86,26 @@ test('reveal reports the explorer hand-off without touching the draft', async ()
 
 test('known apps launch through the registry-resolved id and keep draft protection', async () => {
   const { tabs, calls } = make({ choice: 'discard' }); await tabs.open('a.txt'); await tabs.edit(); tabs.setDraft('draft');
-  assert.equal(await tabs.openInApp('code', 'VS Code'), true);
-  assert.deepEqual(calls.find(([cmd]) => cmd === 'vw_launch_external_app')[1], { handle: 'a.txt', appId: 'code' });
+  assert.equal(await tabs.launchAssociated('code', 'VS Code'), true);
+  assert.deepEqual(calls.find(([cmd]) => cmd === 'vw_launch_associated_app')[1], { handle: 'a.txt', appId: 'code' });
   assert.equal(tabs.state.draft, 'draft'); assert.equal(tabs.state.dirty, true);
   assert.match(tabs.state.status, /已用 VS Code 打开 · 使用的是已保存版本/);
 });
 
-test('app detection is fetched once and cached on the controller', async () => {
+test('terminal choice launches in the document directory without a dialog', async () => {
   const { tabs, calls } = make(); await tabs.open('a.txt');
-  const count = () => calls.filter(([cmd]) => cmd === 'vw_external_apps').length;
-  await tabs.ensureExternalApps();
-  assert.equal(count(), 1);
-  await tabs.ensureExternalApps();
-  assert.equal(count(), 1);
-  assert.deepEqual(tabs.state.externalApps, [{ id: 'code', name: 'VS Code', exe: 'C:\\tools\\Code.exe' }]);
+  assert.equal(await tabs.openInTerminal('cmd', 'CMD'), true);
+  assert.deepEqual(calls.find(([cmd]) => cmd === 'vw_open_in_terminal')[1], { handle: 'a.txt', terminal: 'cmd' });
+  assert.match(tabs.state.status, /已在 CMD 打开所在目录/);
+});
+
+test('associated apps and terminal choices are fetched once per document', async () => {
+  const { tabs, calls } = make(); await tabs.open('a.txt');
+  const count = command => calls.filter(([cmd]) => cmd === command).length;
+  await tabs.ensureOpenInChoices();
+  assert.equal(count('vw_associated_apps'), 1);
+  assert.equal(count('vw_terminal_choices'), 1);
+  await tabs.ensureOpenInChoices();
+  assert.equal(count('vw_associated_apps'), 1);
+  assert.deepEqual(tabs.state.openInApps, [{ id: 'code', name: 'VS Code', exe: 'C:\\tools\\Code.exe', iconKey: null, is_default: true }]);
 });

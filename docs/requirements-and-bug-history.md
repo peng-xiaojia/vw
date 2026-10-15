@@ -75,6 +75,7 @@
 | REQ-032 | 增加“在终端打开”。 | 已实现：在文件父目录或目录标签本身启动系统 PowerShell。 | 只打开交互终端，不执行当前文件；特殊字符通过工作目录传递。真实终端交互待人工验收。 |
 | REQ-033 | 外部打开入口改为参考 JetBrains 的角标下拉：直接列出文件资源管理器（默认）与已安装的 VS Code / Android Studio / IntelliJ IDEA / PyCharm 等。 | 已实现：文件树工具栏与文档标题栏各有一个下拉，列出资源管理器显示、注册表检测到的常见编辑器、终端和其他软件；检测与启动都在 Rust 侧完成，启动时按 id 重新解析注册表，WebView 不得指定可执行文件路径。原系统应用选择器保留为“其他软件…”。 | 检测覆盖常见编辑器关键字，未安装时不显示对应项；启动外部软件后的自动刷新仍未实现。JS/Rust/Chromium/原生回归见第 6.3 节。 |
 | REQ-034 | 更换应用图标为用户提供的熊猫图。 | 已实现：以 1024px 原图经 `tauri icon` 生成全套桌面与 Store 图标（保留 panda-source.png 便于再生成），`icons/icon.ico` 同时作为 EXE 内嵌资源与 NSIS 安装包图标，debug 构建提取图标比对通过。 | 图源由用户提供，许可未随仓库声明；移动端图标目录未纳入仓库。 |
+| REQ-036 | 外部打开下拉不写死软件列表：按当前文件格式查系统"打开方式"关联软件并带原生图标；终端改为可选列表（CMD/PowerShell/Windows Terminal）；应用显示名改为熊猫查看器。 | 已实现：新 associations 模块读取注册表 ProgId/OpenWith 列表与 DefaultIcon，图标提取为 PNG 后经 vw-icon 协议按内容寻址提供，默认程序排第一；终端枚举检测 Windows Terminal 别名、PowerShell、CMD；工具栏品牌、窗口标题与关于对话框改为熊猫查看器（exe/仓库名保持 vw）。 | 关联软件随系统注册变化，名称优先取 FriendlyTypeName/文件描述，取不到用 exe 名；图标仅提取 32px 一档。 |
 | REQ-035 | 用 SignPath Foundation 的开源免费签名。 | 部分实现：公开仓库与 CI 构建已满足资格前提；新增 `-UseSignPath` 签名脚本（契约同 VSign）与 CI 自动接线，申请材料见 [SignPath 申请材料](signpath-application.md)。**2026-10-15 申请表已提交**，等待人工审核。 | 审核由 SignPath Foundation 判定；获批后按其文档校准签名脚本参数并配置 Secrets；未获批前产物保持 NotSigned。 |
 
 ## 4. Bug 修复记录
@@ -127,7 +128,8 @@
 | BUG-030 | 原生编辑验证 / 2026-10-15 | 查找“下一个”重复停在当前命中。 | 从当前选区末尾继续查找，原生编辑回归通过。 | [编辑验收](reviews/2026-10-15-editor-validation.md)；`f72dfaa`。 |
 | BUG-031 | HTML / 标签审查 / 2026-10-15 | 等待保存退出时可再修改草稿；预览逆序覆盖、旧编码声明或伪造外链请求影响状态。 | 退出期间冻结编辑与切换；预览版本校验、处理编码声明，外链需应用内用户确认。 | [HTML 验收](reviews/2026-10-15-html-tabs-validation.md)；`5efae70`。 |
 | BUG-032 | 窄窗口回归 / 2026-10-15 | 720 px 窗口目录浮层遮挡展示 / 源码及外部工具按钮；绝对定位参照整个文档区。 | 正文建立定位容器，目录浮层限定在正文内，按钮实际鼠标命中测试从失败变为通过。 | [外部工具验收](reviews/2026-10-15-external-tools-validation.md)；`3f93e59`。截图记录为 `target/ui-external-tools-narrow.png`。 |
-| BUG-033 | 原生编辑回归 / 2026-10-15 | legacy.log 的 GBK 重开并 UTF-8/LF 保存断言在一次运行中失败（盘上为 `??\r\n` 形态的替换字节），相同代码立即重跑通过；与当次下拉改动无直接调用关系。 | 待定位：疑似保存等待与落盘的时序竞态，尚未获得稳定复现路径；后续复现时先捕获保存管线各阶段状态。 | 本次运行记录：失败与重跑各一次，代码同为 `eaa7d17` 前身工作区；未执行注入式复现。 |
+| BUG-033 | 原生编辑回归 / 2026-10-15 | legacy.log 与 example.js 的编码保存断言多次间歇失败（GBK mojibake、缺 UTF-16 BOM），而落盘文件事后核验均为正确字节。 | 已定位：断言等待的是控制器状态标志，读文件早于写盘完成；测试改为轮询等待目标文件的实际字节（Node 侧 fs 轮询，100×100ms），产品保存管线无需改动。连续三次运行通过。 | 修改见 `app/ui-tests/native-editor.cjs`；提交见 6.1 里程碑。 |
+| BUG-035 | 用户实测截图 / 2026-10-15 | 点击「文件资源管理器（默认）」报 os error 2：explorer.exe 位于 Windows 目录而非 System32，启动路径拼错。 | 改用 GetWindowsDirectoryW 定位 explorer.exe；GUI/Chromium 回归中资源管理器路径解析用例更新。 | `fix` 提交见 6.1 里程碑。 |
 | BUG-034 | 用户实测截图 / 2026-10-15 | 侧栏与标题栏的外部打开下拉菜单被截断且难以点击：`.menu-popup` 的 `left: 0` 按样式表顺序覆盖了 `.open-in-popup` 的 `right: 0`，菜单自按钮左缘向右展开，在侧栏内越过边界被文档区遮挡，在标题栏伸出窗口右缘；`#sidebar` 的 `overflow: auto` 也裁剪绝对定位弹层。 | 弹层改为 `position: fixed` 并由 JS 按锚点底边定位、右对齐向左展开，逃出侧栏滚动裁剪，z-index 提至 60；feature-smoke 增加侧栏内与窗口内两处越界断言，重打包验证通过。 | `198ac89`；重打包 manifest 对应 `198ac89` 且 `sourceDirty: false`。 |
 
 初始审查中的大纲未接入、图片占位、文件夹入口缺失、大文件整篇加载等，后续分别通过功能接入和按需分页改善，现状见 [能力矩阵](desktop-capabilities.md)；它们不全部作为用户报告的独立 Bug。64 MiB 首屏测量仅适用于当时机器和测试范围，不外推为任意文件性能保证。

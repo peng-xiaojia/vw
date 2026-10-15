@@ -31,8 +31,10 @@ percent-encoding = "2"
 uuid = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_System_SystemInformation", "Win32_System_Com"] }
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_System_SystemInformation", "Win32_System_Com", "Win32_Graphics_Gdi", "Win32_Storage_FileSystem"] }
 winreg = "0.55"
+image = { version = "0.25", default-features = false, features = ["png"] }
+blake3 = { workspace = true }
 
 [dev-dependencies]
 vw-plugin-text = { workspace = true }

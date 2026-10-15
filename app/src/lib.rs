@@ -15,7 +15,9 @@ use vw_protocol::{OpenOptions, PluginError, Source};
 mod file_associations;
 mod plugins;
 mod html_preview;
+mod associations;
 mod external_open;
+pub use associations::{AssociatedApp, TerminalChoice};
 pub use external_open::ExternalAction;
 
 /// 全局应用状态：一个 Session + 打开的文档句柄表。
@@ -24,6 +26,7 @@ pub struct AppState {
     docs: Mutex<HashMap<String, Arc<OpenedDoc>>>,
     startup: Mutex<(bool, Vec<String>)>,
     html_mounts: Mutex<html_preview::Mounts>,
+    icons: Mutex<HashMap<String, Vec<u8>>>,
 }
 
 impl AppState {
@@ -34,6 +37,7 @@ impl AppState {
             docs: Mutex::new(HashMap::new()),
             startup: Mutex::new((false, vec![])),
             html_mounts: Mutex::new(HashMap::new()),
+            icons: Mutex::new(HashMap::new()),
         })
     }
 
@@ -43,6 +47,7 @@ impl AppState {
             docs: Mutex::new(HashMap::new()),
             startup: Mutex::new((false, vec![])),
             html_mounts: Mutex::new(HashMap::new()),
+            icons: Mutex::new(HashMap::new()),
         }
     }
 
@@ -110,9 +115,18 @@ impl AppState {
             ExternalAction::OtherApp => Err(PluginError::unsupported("请选择要用其他软件打开的文件")),
             ExternalAction::Terminal if path.is_dir() => Ok(path),
             ExternalAction::Terminal => path.parent().map(Path::to_path_buf).ok_or_else(|| PluginError::unsupported("无法确定文件所在目录")),
-            // Explorer reveals files and directories alike; known apps accept both.
-            ExternalAction::Reveal | ExternalAction::App => Ok(path),
+            // Explorer reveals files and directories alike.
+            ExternalAction::Reveal => Ok(path),
         }
+    }
+
+    pub fn icon_impl(&self, key: &str) -> Result<(&'static str, Vec<u8>), PluginError> {
+        self.icons
+            .lock()
+            .unwrap()
+            .get(key)
+            .map(|bytes| ("image/png", bytes.clone()))
+            .ok_or_else(|| PluginError::malformed("图标不存在"))
     }
 
     pub fn open_impl(
@@ -491,22 +505,51 @@ async fn vw_open_elsewhere(state: tauri::State<'_, Arc<AppState>>, window: tauri
     }).await
 }
 
+/// Registered "open with" targets for the document's file type, icons cached for the vw-icon scheme.
 #[tauri::command]
-async fn vw_external_apps() -> Vec<external_open::ExternalApp> {
-    tauri::async_runtime::spawn_blocking(external_open::detect_apps).await.unwrap_or_default()
+async fn vw_associated_apps(state: tauri::State<'_, Arc<AppState>>, handle: String) -> Result<Vec<AssociatedApp>, String> {
+    let state = state.inner().clone();
+    let apps = tauri::async_runtime::spawn_blocking(move || {
+        match state.external_target_impl(&handle, ExternalAction::OtherApp) {
+            Ok(path) => associations::associated_apps(&path, &state.icons),
+            Err(_) => Vec::new(),
+        }
+    })
+    .await
+    .unwrap_or_default();
+    Ok(apps)
 }
 
-/// The app id is re-resolved against the registry at launch time; the webview never names an executable.
 #[tauri::command]
-async fn vw_launch_external_app(state: tauri::State<'_, Arc<AppState>>, handle: String, app_id: String) -> Result<bool, String> {
+async fn vw_terminal_choices() -> Vec<TerminalChoice> {
+    tauri::async_runtime::spawn_blocking(associations::terminal_choices).await.unwrap_or_default()
+}
+
+/// Start the user's chosen terminal in the document's directory.
+#[tauri::command]
+async fn vw_open_in_terminal(state: tauri::State<'_, Arc<AppState>>, handle: String, terminal: String) -> Result<bool, String> {
     let state = state.inner().clone();
     blocking(move || {
-        let path = state.external_target_impl(&handle, ExternalAction::App)?;
-        let app = external_open::detect_apps().into_iter().find(|app| app.id == app_id)
+        let directory = state.external_target_impl(&handle, ExternalAction::Terminal)?;
+        associations::launch_terminal(&terminal, &directory)
+    })
+    .await
+}
+
+/// Launch a registry-resolved associated application by its list id; the webview never names an executable.
+#[tauri::command]
+async fn vw_launch_associated_app(state: tauri::State<'_, Arc<AppState>>, handle: String, app_id: String) -> Result<bool, String> {
+    let state = state.inner().clone();
+    blocking(move || {
+        let path = state.external_target_impl(&handle, ExternalAction::OtherApp)?;
+        let app = associations::associated_apps(&path, &state.icons)
+            .into_iter()
+            .find(|app| app.id == app_id)
             .ok_or_else(|| PluginError::internal("所选软件当前不可用，请重新打开菜单"))?;
         external_open::launch_app(&app.exe, &path)?;
         Ok(true)
-    }).await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -706,6 +749,31 @@ pub fn run_app() -> tauri::Result<()> {
                 }
             });
         })
+        .register_asynchronous_uri_scheme_protocol("vw-icon", |context, request, responder| {
+            let app = context.app_handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                let key = request.uri().path().trim_start_matches('/');
+                let result = if request.method() == tauri::http::Method::GET {
+                    app.state::<Arc<AppState>>().icon_impl(key)
+                } else { Err(PluginError::permission("仅允许 GET")) };
+                let response = match result {
+                    Ok((mime, bytes)) => tauri::http::Response::builder()
+                        .status(200)
+                        .header("Content-Type", mime)
+                        .header("X-Content-Type-Options", "nosniff")
+                        .header("Cache-Control", "no-store")
+                        .header("Content-Security-Policy", "default-src 'none'; sandbox")
+                        .body(bytes),
+                    Err(_) => tauri::http::Response::builder()
+                        .status(403)
+                        .header("Content-Type", "text/plain")
+                        .body(b"Resource denied".to_vec()),
+                };
+                if let Ok(response) = response {
+                    responder.respond(response);
+                }
+            });
+        })
         .invoke_handler(tauri::generate_handler![
             vw_open,
             vw_page,
@@ -725,8 +793,10 @@ pub fn run_app() -> tauri::Result<()> {
             vw_startup_paths,
             vw_open_external,
             vw_open_elsewhere,
-            vw_external_apps,
-            vw_launch_external_app,
+            vw_associated_apps,
+            vw_terminal_choices,
+            vw_open_in_terminal,
+            vw_launch_associated_app,
             vw_export
             ,plugins::vw_plugins
             ,plugins::vw_plugin_market

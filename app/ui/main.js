@@ -256,7 +256,7 @@ function render(state) {
   $('window-title').textContent = doc ? doc.title || displayPath(doc.path) : '文件查看器';
   $('btn-outline').disabled = !doc;
   syncOutline();
-  document.title = doc ? `${state.dirty ? '* ' : ''}${doc.title || doc.path} · vw` : 'vw · 文件查看器';
+  document.title = doc ? `${state.dirty ? '* ' : ''}${doc.title || doc.path} · 熊猫查看器` : '熊猫查看器';
   $('status').textContent = state.status; $('error-banner').classList.toggle('hidden', !state.error); $('error-text').textContent = state.error;
   $('document-area').setAttribute('aria-busy', String(state.opening || state.saving));
   $('empty-state').querySelector('h1').textContent = !doc && state.opening ? '正在打开…' : '打开文件，开始阅读';
@@ -370,18 +370,34 @@ async function incomingPaths(paths) {
 }
 
 function openInItems(flags) {
-  const entry = (attributes, label) => {
+  const entry = (attributes, label, image) => {
     const button = document.createElement('button');
     button.type = 'button';
     for (const [key, value] of Object.entries(attributes)) button.dataset[key] = value;
-    button.textContent = label;
+    if (image) button.append(image);
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'menu-label';
+    labelSpan.textContent = label;
+    button.append(labelSpan);
     return button;
   };
   const flagFor = button => button.dataset.appId != null ? 'apps'
-    : { reveal: 'reveal', terminal: 'terminal', other_app: 'otherApp' }[button.dataset.action];
-  const buttons = [entry({ action: 'reveal' }, '文件资源管理器（默认）')];
-  for (const app of controller.state.externalApps ?? []) buttons.push(entry({ appId: app.id, appName: app.name }, app.name));
-  buttons.push(document.createElement('hr'), entry({ action: 'terminal' }, '在终端打开'), entry({ action: 'other_app' }, '其他软件…'));
+    : button.dataset.terminal != null ? 'terminal'
+    : { reveal: 'reveal', other_app: 'otherApp' }[button.dataset.action];
+  const buttons = [entry({ action: 'reveal' }, '文件资源管理器（默认）', icon('folder-open'))];
+  for (const app of controller.state.openInApps ?? []) {
+    const image = app.iconKey ? new Image(16, 16) : null;
+    if (image) {
+      image.src = `http://vw-icon.localhost/${app.iconKey}`;
+      image.alt = '';
+      image.onerror = () => image.remove();
+    }
+    buttons.push(entry({ appId: app.id, appName: app.name }, app.is_default ? `${app.name}（默认）` : app.name, image));
+  }
+  for (const choice of controller.state.terminalChoices ?? []) {
+    buttons.push(entry({ terminal: choice.id, terminalName: choice.name }, `在${choice.name}打开`));
+  }
+  buttons.push(document.createElement('hr'), entry({ action: 'other_app' }, '其他软件…'));
   for (const button of buttons) {
     if (button.tagName === 'HR') continue;
     button.disabled = controller.closing || controller.state.externalOpening || !flags[flagFor(button)];
@@ -414,14 +430,15 @@ function wireOpenInMenu(details) {
     for (const menu of document.querySelectorAll('.top-menu')) menu.open = false;
     renderOpenInMenu(details);
     positionOpenInPopup(details);
-    controller.ensureExternalApps().then(() => { if (details.open) renderOpenInMenu(details); });
+    controller.ensureOpenInChoices().then(() => { if (details.open) renderOpenInMenu(details); });
   });
   details.addEventListener('click', event => {
-    const button = event.target.closest('button[data-action], button[data-app-id]');
+    const button = event.target.closest('button[data-action], button[data-app-id], button[data-terminal]');
     if (!button) return;
     details.open = false;
     if (button.disabled) return;
-    if (button.dataset.appId != null) controller.openInApp(button.dataset.appId, button.dataset.appName || '');
+    if (button.dataset.appId != null) controller.launchAssociated(button.dataset.appId, button.dataset.appName || '');
+    else if (button.dataset.terminal != null) controller.openInTerminal(button.dataset.terminal, button.dataset.terminalName || '');
     else controller.openElsewhere(button.dataset.action);
   });
 }

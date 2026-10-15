@@ -4906,6 +4906,8 @@ dependencies = [
 name = "vw-app"
 version = "0.1.0"
 dependencies = [
+ "blake3",
+ "image",
  "percent-encoding",
  "rfd",
  "serde",

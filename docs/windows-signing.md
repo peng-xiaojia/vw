@@ -38,6 +38,15 @@ pwsh -NoProfile -File tools/windows/build-release.ps1 -UseVSign -RequireSigning
 
 不配置签名参数时生成未签名版本，manifest.json 如实记录 NotSigned。SHA-256 是完整性校验，不是 Authenticode；插件 manifest.signature 也不是 Windows 程序签名。
 
+## GitHub Actions 自动发布
+
+`.github/workflows/windows-release.yml` 在推送 `v*` 标签或手动触发时构建 Windows 便携包和安装包并附加到 Release：
+
+- 未配置签名 Secret 时产出未签名版本，manifest 记录 NotSigned。
+- 本机证书模式：配置 Secrets `WINDOWS_CERTIFICATE_PFX`（PFX 的 base64）和 `WINDOWS_CERTIFICATE_PASSWORD`，工作流导入 runner 的 CurrentUser/My 后以指纹调用构建脚本。
+- 云签名模式：把 `docs/windows-signing.md` 本节列出的 VSIGN_* / SSIGNCODE_* 环境变量逐项配置为仓库 Secrets，工作流自动加 `-UseVSign -RequireSigning`。
+- 签名验证失败会使构建失败，不会发布无效签名产物。
+
 ## 免费分发路径与限制（2026-10-14 核查）
 
 - **Microsoft Store + MSIX**：微软对通过商店提交的 MSIX 免费重签，用户从商店安装时不遇到 SmartScreen 下载提示。现有 NSIS EXE 不能直接享用这项重签；要另做 MSIX 包、验证文件关联与插件目录在包隔离下的行为，并通过商店审核。[微软签名选项](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)、[Tauri 的 MSIX 打包指南](https://learn.microsoft.com/en-us/windows/apps/dev-tools/winapp-cli/guides/tauri)

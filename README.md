@@ -70,6 +70,10 @@ Windows 数据目录默认使用 `%LOCALAPPDATA%\vw\webview-data`。便携包含
 
 Windows 发布：`pwsh -File tools/windows/build-release.ps1` 生成 `dist/windows/` 中的便携包、NSIS 安装包和 SHA-256 清单。提供代码签名证书时可加 `-CertificateThumbprint <证书指纹> -RequireSigning`；云签名可加 `-UseVSign -RequireSigning`，详见 [签名配置](docs/windows-signing.md)。未提供证书的本地构建为未签名产物。
 
+## 下载与代码签名
+
+Windows 发行包通过 [GitHub Releases](https://github.com/peng-xiaojia/vw/releases) 分发，并使用 [SignPath Foundation](https://signpath.org)（面向开源项目的免费代码签名计划）签发的证书签名，安装包与便携包随附 SHA-256 清单。
+
 ## 一致性保证
 
 `vw-conformance` 用同一套用例驱动三种传输路径（进程内直调、内存管道、真实子进程），

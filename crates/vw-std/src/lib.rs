@@ -30,7 +30,7 @@ pub fn register_builtins(reg: &mut Registry) {
         reg.register(Arc::new(PdfViewer::new(80)));
     }
     reg.register(Arc::new(TextViewer::new(
-        &["txt", "log", "ini", "toml", "cfg"],
+        &["txt", "log", "ini", "toml", "cfg", "conf", "env", "sh", "bash", "zsh", "bat", "cmd", "ps1", "psm1", "js", "mjs", "cjs", "jsx", "ts", "tsx", "mts", "cts", "py", "pyw", "rs", "go", "c", "h", "cpp", "hpp", "cs", "java", "kt", "sql", "xml", "svg", "css", "scss", "less", "yaml", "yml", "vue", "svelte", "properties"],
         50,
     )));
     reg.register(Arc::new(TextViewer::html()));

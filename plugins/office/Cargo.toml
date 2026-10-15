@@ -10,3 +10,5 @@ vw-core = { workspace = true }
 vw-protocol = { workspace = true }
 zip = { workspace = true }
 quick-xml = "0.42"
+office_oxide = "=0.1.14"
+serde_json = { workspace = true }

@@ -80,7 +80,9 @@ Copy-Item -LiteralPath $exe -Destination (Join-Path $portable 'vw-app.exe') -For
 $licenses = Join-Path $portable 'licenses'
 New-Item -ItemType Directory -Path $licenses -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repo 'app/ui/icons/LICENSE.txt') -Destination (Join-Path $licenses 'lucide-LICENSE.txt') -Force
-Copy-Item -LiteralPath (Join-Path $repo 'docs/licenses/dbx-LICENSE-apache-2.0.txt') -Destination (Join-Path $licenses 'dbx-LICENSE-apache-2.0.txt') -Force
+Copy-Item -LiteralPath (Join-Path $repo 'app/ui/vendor/codemirror/LICENSE') -Destination (Join-Path $licenses 'CodeMirror-LICENSE.txt') -Force
+Copy-Item -LiteralPath (Join-Path $repo 'app/ui/vendor/prettier/LICENSE') -Destination (Join-Path $licenses 'Prettier-LICENSE.txt') -Force
+Get-ChildItem -LiteralPath (Join-Path $repo 'docs/licenses') -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $licenses $_.Name) -Force }
 Copy-Item -LiteralPath (Join-Path $repo 'docs/THIRD-PARTY-NOTICES.md') -Destination (Join-Path $licenses 'THIRD-PARTY-NOTICES.md') -Force
 Set-Content -LiteralPath (Join-Path $portable 'vw-portable.marker') -Value 'Portable mode: WebView2 data goes beside this executable if writable.' -Encoding utf8NoBOM
 Set-Content -LiteralPath (Join-Path $portable 'README.txt') -Value 'Extract the ZIP into a normal user folder (for example Downloads) before running vw-app.exe. A restricted development workspace can attach a Low integrity label to executables, preventing Windows file-association registration. Microsoft Edge WebView2 Runtime is required. The NSIS installer can provision it. VW_WEBVIEW_DATA overrides the data directory. Unsigned builds may prompt SmartScreen; signing does not guarantee reputation.' -Encoding utf8NoBOM

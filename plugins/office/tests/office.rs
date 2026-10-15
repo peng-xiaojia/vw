@@ -286,3 +286,32 @@ fn full_500_by_128_sheet_fits_the_documented_preview_limits() {
     assert_eq!(rows[499].len(), 129);
     assert_eq!(rows[499][128], vw_protocol::Inline::text("128"));
 }
+
+#[test]
+fn legacy_doc_and_xls_render_real_content_instead_of_hex() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    for name in ["simple-table.doc", "any_sheets.xls"] {
+        let viewer = OfficeViewer::new(75);
+        let source = Source::path(root.join(name));
+        assert_eq!(viewer.probe(&source).unwrap().score, 95);
+        let doc = viewer.open(&source, &OpenOptions::default()).unwrap();
+        assert_eq!(doc.meta().viewer, "office");
+        assert!(doc.as_editable().is_none());
+        let page = doc.page(PageRange { start: 0, count: 1000 }).unwrap();
+        assert!(!page.blocks.is_empty());
+        assert!(page.blocks.iter().any(|b| matches!(b, Block::Table { rows, .. } if !rows.is_empty())), "{name}: {:?}", page.blocks);
+        assert!(serde_json::to_string(&page).unwrap().len() > 100);
+    }
+}
+
+#[test]
+fn legacy_word_lists_keep_their_body_and_searchable_text() {
+    let source = Source::path(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/simple-list.doc"));
+    let doc = OfficeViewer::new(75).open(&source, &OpenOptions::default()).unwrap();
+    let page = doc.page(PageRange { start: 0, count: 100 }).unwrap();
+    assert!(page.blocks.iter().any(|b| matches!(b, Block::List { items, .. } if !items.is_empty())));
+    let body = page.blocks.iter().filter_map(vw_protocol::block_text).collect::<Vec<_>>().join("\n");
+    assert!(body.len() > 20, "{body}");
+    let keyword = body.split_whitespace().find(|s| s.len() >= 3).unwrap();
+    assert!(!doc.search(keyword, Cursor::start()).unwrap().hits.is_empty());
+}

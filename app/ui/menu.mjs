@@ -7,5 +7,9 @@ export function menuStates(state) {
     close: Boolean(doc && !state.saving), cancel: state.opening,
     edit: Boolean(doc?.editable && !state.editing && !state.saving && !state.opening),
     preview: Boolean(doc && state.editing && !state.saving), search: Boolean(doc && !state.saving),
+    format: Boolean(doc?.editable && doc?.format && !state.saving && !state.opening && !state.formatting),
+    replace: Boolean(doc?.editable && !state.saving && !state.opening),
+    binary: Boolean(doc && doc.viewerId !== 'dir' && doc.viewerId !== 'hex' && !state.saving),
+    normal: Boolean(doc && !state.saving), text: Boolean(doc && doc.viewerId !== 'dir' && !state.saving),
   });
 }

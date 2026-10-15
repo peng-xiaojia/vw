@@ -50,7 +50,7 @@ pub struct OpenedDoc {
     doc: RwLock<Box<dyn Doc>>,
     viewer: Arc<dyn Viewer>,
     io_source: Source,
-    opts: OpenOptions,
+    opts: Mutex<OpenOptions>,
     _temp_dir: Option<SessionTempDir>,
     closed: AtomicBool,
     /// 目录源无基线（不可保存）。
@@ -162,6 +162,40 @@ impl OpenedDoc {
 
     /// 保存管线（设计规格 §5.4）：serialize → 冲突检测 → 原子写 → 备份 → 更新基线。
     pub fn save_text(&self, text: String) -> Result<SaveReport, PluginError> {
+        self.save_text_with_encoding(text, None)
+    }
+
+    pub fn format_support(&self) -> Option<vw_protocol::FormatSupport> {
+        self.doc.read().unwrap().format_support()
+    }
+
+    pub fn format_text(&self, text: &str) -> Result<String, PluginError> {
+        let doc = self.doc.read().unwrap();
+        self.ensure_open()?;
+        if !self.viewer.manifest().capabilities_of(&self.viewer_id).iter().any(|c| c == "format") {
+            return Err(PluginError::unsupported("插件未注册格式化能力"));
+        }
+        doc.format_text(text)
+    }
+
+    pub fn reopen_encoding(&self, encoding: &str) -> Result<(), PluginError> {
+        let mut doc = self.doc.write().unwrap();
+        self.ensure_open()?;
+        if matches!(self.source, Source::Archive { .. }) {
+            return Err(PluginError::unsupported("归档成员请导出后重新解码"));
+        }
+        let mut opts = self.opts.lock().unwrap();
+        let mut next = opts.clone(); next.encoding = Some(encoding.into());
+        let fresh = self.viewer.open(&self.io_source, &next)?;
+        if fresh.as_editable().is_none() { return Err(PluginError::unsupported("该文件不支持文本重新解码")); }
+        let baseline = policy::capture_baseline(self.path.clone())?;
+        baseline.snapshot()?;
+        *self.baseline.lock().unwrap() = Some(baseline);
+        doc.close(); *doc = fresh; *opts = next;
+        Ok(())
+    }
+
+    pub fn save_text_with_encoding(&self, text: String, encoding: Option<&str>) -> Result<SaveReport, PluginError> {
         if matches!(self.source, Source::Archive { .. }) {
             return Err(PluginError::unsupported("归档成员只读，请导出后编辑"));
         }
@@ -175,7 +209,7 @@ impl OpenedDoc {
             return Err(PluginError::unsupported("该源（目录）不支持保存"));
         };
         // 1. 插件校验并产出新字节（可拒绝）
-        let bytes = ed.serialize(&EditSnapshot::text(text))?;
+        let bytes = ed.serialize_with_encoding(&EditSnapshot::text(text), encoding)?;
         if let EditCapability::Text {
             max_bytes: Some(limit),
             ..
@@ -205,7 +239,9 @@ impl OpenedDoc {
                 )));
             }
         };
-        match self.viewer.open(&self.io_source, &self.opts) {
+        let mut opts = self.opts.lock().unwrap();
+        if let Some(label) = encoding { opts.encoding = Some(label.into()); }
+        match self.viewer.open(&self.io_source, &opts) {
             Ok(fresh) => {
                 doc.close();
                 *doc = fresh;
@@ -326,7 +362,7 @@ impl Session {
             outer: Box::new(Source::path(outer)),
             inner: inner.to_string(),
         };
-        let viewer = self.registry.select(&src, opts.as_viewer.as_deref())?;
+        let viewer = self.registry.select(&src, None)?;
         let arch = viewer
             .as_ref()
             .as_archive()
@@ -379,7 +415,7 @@ impl Session {
             doc: RwLock::new(doc),
             viewer,
             io_source: probe_source.clone(),
-            opts,
+            opts: Mutex::new(opts),
             _temp_dir: temp_dir,
             closed: AtomicBool::new(false),
             baseline: Mutex::new(baseline),

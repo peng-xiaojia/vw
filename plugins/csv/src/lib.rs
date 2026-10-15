@@ -121,6 +121,9 @@ impl Doc for CsvDoc {
 }
 
 impl EditableDoc for CsvDoc {
+    fn serialize_with_encoding(&self, edited: &EditSnapshot, encoding: Option<&str>) -> Result<Vec<u8>, PluginError> {
+        self.file.serialize_as(edited, encoding)
+    }
     fn edit_capability(&self) -> EditCapability {
         self.file.capability()
     }
@@ -163,7 +166,7 @@ impl Viewer for CsvViewer {
         }
     }
 
-    fn open(&self, source: &Source, _opts: &OpenOptions) -> Result<Box<dyn Doc>, PluginError> {
+    fn open(&self, source: &Source, opts: &OpenOptions) -> Result<Box<dyn Doc>, PluginError> {
         let path = source
             .as_fs_path()
             .ok_or_else(|| PluginError::malformed("CSV 插件只支持本地路径源"))?;
@@ -171,7 +174,8 @@ impl Viewer for CsvViewer {
         let size = bytes.len() as u64;
         let title = path.file_name().map(|n| n.to_string_lossy().to_string());
 
-        let body: &[u8] = if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) { &bytes[3..] } else { &bytes };
+        let file = TextFile::decode(&bytes, EDIT_MAX_BYTES, opts.encoding.as_deref())?;
+        let body = file.text.as_bytes();
         let head_end = body.split(|&b| b == b'\n').next().map(|l| l.len()).unwrap_or(0);
         let delimiter = self.delimiter_for(path, &body[..head_end.min(body.len())]);
         let records = parse_records(body, delimiter)?;
@@ -179,7 +183,7 @@ impl Viewer for CsvViewer {
         let (blocks, _) = build_blocks(&records);
         Ok(Box::new(CsvDoc {
             viewer_id: self.viewer_id.clone(),
-            file: TextFile::from_bytes(&bytes, EDIT_MAX_BYTES),
+            file,
             blocks,
             mime: if is_tsv { "text/tab-separated-values" } else { "text/csv" },
             title,

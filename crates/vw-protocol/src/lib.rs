@@ -22,5 +22,5 @@ pub use rpc::{Request, Response};
 pub use search::{block_text, inline_text, run_text, search_blocks};
 pub use source::Source;
 pub use types::{
-    BlockList, Cursor, DocMeta, OpenOptions, Outline, OutlineItem, PageRange, ProbeScore, SearchHit, SearchHits,
+    BlockList, Cursor, DocMeta, FormatSupport, OpenOptions, Outline, OutlineItem, PageRange, ProbeScore, SearchHit, SearchHits,
 };

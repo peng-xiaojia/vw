@@ -10,13 +10,21 @@
     "withGlobalTauri": true,
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://vw-blob.localhost vw-blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src http://vw-preview.localhost vw-preview:; base-uri 'none'; form-action 'none'"
+      "csp": "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://vw-blob.localhost vw-blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src http://vw-preview.localhost vw-preview:; base-uri 'none'; form-action 'none'"
     }
   },
   "bundle": {
     "resources": {
       "../docs/licenses/dbx-LICENSE-apache-2.0.txt": "licenses/dbx-LICENSE-apache-2.0.txt",
       "../app/ui/icons/LICENSE.txt": "licenses/lucide-LICENSE.txt",
+      "../app/ui/vendor/codemirror/LICENSE": "licenses/CodeMirror-LICENSE.txt",
+      "../app/ui/vendor/prettier/LICENSE": "licenses/Prettier-LICENSE.txt",
+      "../docs/licenses/office-oxide-LICENSE-APACHE": "licenses/office-oxide-LICENSE-APACHE",
+      "../docs/licenses/office-oxide-LICENSE-MIT": "licenses/office-oxide-LICENSE-MIT",
+      "../docs/licenses/encoding-rs-LICENSE-APACHE": "licenses/encoding-rs-LICENSE-APACHE",
+      "../docs/licenses/encoding-rs-LICENSE-MIT": "licenses/encoding-rs-LICENSE-MIT",
+      "../docs/licenses/encoding-rs-LICENSE-WHATWG": "licenses/encoding-rs-LICENSE-WHATWG",
+      "../docs/licenses/encoding-rs-COPYRIGHT": "licenses/encoding-rs-COPYRIGHT",
       "../docs/THIRD-PARTY-NOTICES.md": "licenses/THIRD-PARTY-NOTICES.md"
     },
     "active": true,

@@ -12,6 +12,10 @@ import { ThemeSettings } from './theme.mjs';
 import { bindPaneResizer } from './resizer.mjs';
 import { renderOutline } from './outline.mjs';
 import { HtmlPreviews } from './html-preview.mjs';
+import { CodeEditor } from './code-editor.mjs';
+import { registerFormatter, formatDocument } from './formatters.mjs';
+import { prettierFormatter } from './plugin-assets/text-formatter.mjs';
+registerFormatter('prettier', prettierFormatter);
 
 const $ = id => document.getElementById(id);
 const tauri = window.__TAURI__;
@@ -65,9 +69,30 @@ const htmlPreviews = new HtmlPreviews({ host: $('html-preview-host'), invoke,
   },
 });
 const controller = new DocumentTabs({ invoke, confirmDirty, onChange: render,
-  beforeActivate: stashView, onRemove: tab => htmlPreviews.remove(tab),
+  beforeActivate: stashView, onRemove: tab => { htmlPreviews.remove(tab); codeEditor.remove(tab); },
 });
+const codeEditor = new CodeEditor($('editor'), { onChange: value => controller.setDraft(value),
+  onFind: replace => showEditorFind(replace), onFormat: () => runFormat(), onZoom: step => themeSettings.adjustFontSize(step) });
 const workspace = new WorkspaceTree({ invoke, onChange: renderTree });
+
+async function runFormat() { return controller.format((doc, text) => formatDocument(doc, text, invoke)); }
+async function showEditorFind(replace = true) {
+  if (!controller.state.doc) return;
+  if (replace && !(await controller.edit())) return;
+  if (!controller.state.editing && controller.state.doc.viewerId !== 'text') { showNavigation('search'); $('query').focus(); return; }
+  $('editor-find').classList.remove('hidden');
+  $('replace-row').classList.toggle('hidden', !replace);
+  $('edit-query').focus(); $('edit-query').select();
+}
+function alternateView(asViewer) {
+  const doc = controller.state.doc;
+  if (doc && !controller.closing && !controller.state.saving) openDocument(doc.sourcePath, { inner: doc.inner, asViewer });
+}
+function editorOption(option) {
+  const enabled = codeEditor.toggle(option);
+  document.body.classList.toggle('wrap-document', codeEditor.options.lineWrapping);
+  document.querySelector(`[data-action="${option}"]`).setAttribute('aria-checked', String(enabled));
+}
 
 function viewKey(state) { return JSON.stringify([state.doc?.handle, state.revision, state.viewGeneration, state.viewStart, state.blocks.length]); }
 function stashView(tab) {
@@ -99,7 +124,7 @@ function renderTabs() {
     }
     existing.delete(tab.id);
     const state = tab.controller.state;
-    const title = state.doc?.title || displayPath(tab.path).split(/[\\/]/u).at(-1);
+    const title = (state.doc?.title || displayPath(tab.path).split(/[\\/]/u).at(-1)) + (state.doc?.viewerId === 'hex' ? ' · 二进制' : '');
     const active = controller.active === tab;
     item.title = displayPath(tab.path); item.classList.toggle('active', active);
     const [activate, close] = item.children;
@@ -186,7 +211,18 @@ function render(state) {
   }
   if ($('editor').value !== state.draft) $('editor').value = state.draft;
   $('editor').disabled = state.saving || state.opening || controller.closing;
-  $('content').classList.toggle('hidden', state.editing || doc?.viewerId === 'html'); $('editor').classList.toggle('hidden', !state.editing);
+  $('content').classList.toggle('hidden', state.editing || doc?.viewerId === 'html' || doc?.viewerId === 'text');
+  codeEditor.sync(controller.active, { ...state, locked: controller.closing });
+  $('editor-find').classList.toggle('hidden', changed || (!state.editing && doc?.viewerId !== 'text') || $('editor-find').classList.contains('hidden'));
+  $('edit-replace').disabled = $('edit-replace-all').disabled = !state.editing || state.saving || controller.closing;
+  $('mode-binary').disabled = !doc || doc.viewerId === 'dir' || state.saving || controller.closing;
+  $('mode-binary').textContent = doc?.viewerId === 'hex' ? '默认视图' : '二进制';
+  const textCapable = doc && (doc.editOptions?.kind === 'text' || ['text', 'markdown', 'html', 'json', 'csv'].includes(doc.viewerId));
+  $('text-tools').classList.toggle('hidden', !textCapable);
+  $('current-encoding').textContent = doc?.editOptions?.encoding ? `${doc.editOptions.encoding.toUpperCase()}${doc.editOptions.has_bom ? ' BOM' : ''}` : '编码未确认';
+  $('save-encoding').value = state.saveEncoding || ''; $('line-ending').value = state.lineEnding;
+  for (const id of ['save-encoding', 'line-ending']) $(id).disabled = !doc?.editable || state.saving || controller.closing;
+  $('reopen-encoding').disabled = !textCapable || doc.inner !== null || state.saving || controller.closing;
   htmlPreviews.show(controller.active, state);
   if (changed && view) {
     $('content').scrollTop = view.scroll ?? 0; $('editor').scrollTop = view.editorScroll ?? 0;
@@ -297,6 +333,14 @@ async function navigateBlock(index, offset = 0, query = '') {
   const tab = controller.active;
   if (!tab || !(await tab.controller.preview()) || controller.active !== tab) return;
   if (!(await tab.controller.ensureBlock(index)) || controller.active !== tab) return;
+  if (tab.controller.state.doc?.viewerId === 'text') {
+    const state = tab.controller.state;
+    const relative = index - state.viewStart;
+    const before = state.blocks.slice(0, relative).map(block => block.text ?? '').join('');
+    const inBlock = Array.from(state.blocks[relative]?.text ?? '').slice(0, offset).join('');
+    codeEditor.navigate((before + inBlock).replace(/\r\n?/gu, '\n').length, query.length);
+    return;
+  }
   const element = $('content').querySelector(`[data-block="${index}"]`);
   if (!element) return;
   if (element.hidden) {
@@ -337,6 +381,12 @@ function wire() {
     if (action === 'associations') associationDialog.show();
     if (action === 'about') $('about-dialog').showModal();
     if (action === 'appearance') $('appearance-dialog').showModal();
+    if (action === 'format') runFormat();
+    if (action === 'replace') showEditorFind();
+    if (action === 'binary') alternateView('hex');
+    if (action === 'normal') alternateView(null);
+    if (action === 'text') alternateView('text');
+    if (['lineNumbers', 'lineWrapping'].includes(action)) editorOption(action);
     if (action === 'close') { ++routeGeneration; controller.close(); }
     if (action === 'quit') tauri?.window?.getCurrentWindow().close().catch(error => controller.fail('无法关闭窗口', error));
   });
@@ -360,10 +410,25 @@ function wire() {
   bindPaneResizer($('outline-resizer'), $('outline-panel'), { key: 'vw.outline.width', side: 'right', min: 170, max: 520 });
   $('search-form').addEventListener('submit', event => { event.preventDefault(); showNavigation('search'); controller.search($('query').value); });
   $('query').addEventListener('input', () => { if (!$('query').value) controller.search(''); });
-  $('btn-edit').addEventListener('click', async () => { if (await controller.edit()) $('editor').focus(); });
+  $('btn-edit').addEventListener('click', async () => { if (await controller.edit()) codeEditor.focus(); });
   $('btn-preview').addEventListener('click', () => controller.preview()); $('btn-save').addEventListener('click', () => controller.save());
-  $('mode-source').addEventListener('click', async () => { if (await controller.edit()) $('editor').focus(); });
+  $('mode-source').addEventListener('click', async () => { if (await controller.edit()) codeEditor.focus(); });
   $('mode-preview').addEventListener('click', () => controller.preview());
+  $('mode-binary').addEventListener('click', () => alternateView(controller.state.doc?.viewerId === 'hex' ? null : 'hex'));
+  const codecs = [['utf-8', 'UTF-8'], ['utf-8-bom', 'UTF-8 BOM'], ['utf-16le', 'UTF-16 LE'], ['utf-16be', 'UTF-16 BE'], ['gbk', 'GBK'], ['gb18030', 'GB18030'], ['shift_jis', 'Shift-JIS'], ['big5', 'Big5'], ['windows-1252', 'Windows-1252']];
+  for (const id of ['save-encoding', 'reopen-encoding']) for (const [value, label] of codecs) $(id).add(new Option(label, value));
+  $('save-encoding').addEventListener('change', event => controller.setTextOptions({ encoding: event.target.value }));
+  $('line-ending').addEventListener('change', event => controller.setTextOptions({ lineEnding: event.target.value }));
+  $('reopen-encoding').addEventListener('change', async event => { const encoding = event.target.value; event.target.value = ''; if (encoding) await controller.reopenEncoding(encoding); });
+  $('edit-find-close').addEventListener('click', () => { $('editor-find').classList.add('hidden'); codeEditor.focus(); });
+  for (const [id, replace, all] of [['edit-find-next', false, false], ['edit-replace', true, false], ['edit-replace-all', true, true]]) $(id).addEventListener('click', () => {
+    if (replace && (!controller.state.editing || controller.state.saving || controller.closing)) return;
+    const result = codeEditor.find($('edit-query').value, $('edit-case').checked, replace ? $('edit-replacement').value : null, all);
+    $('edit-find-result').textContent = all ? `已替换 ${result.count} 处 · 尚未保存` : result.count ? replace ? '已替换 1 处' : '已定位匹配项' : '未找到匹配项';
+  });
+  $('edit-query').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); $('edit-find-next').click(); } });
+  for (const option of ['lineNumbers', 'lineWrapping']) document.querySelector(`[data-action="${option}"]`).setAttribute('aria-checked', String(codeEditor.options[option]));
+  document.body.classList.toggle('wrap-document', codeEditor.options.lineWrapping);
   $('btn-export').addEventListener('click', () => controller.exportCopy());
   $('editor').addEventListener('input', event => controller.setDraft(event.target.value));
   for (const area of [$('content'), $('editor')]) area.addEventListener('wheel', event => {
@@ -383,13 +448,16 @@ function wire() {
     if (member) { ++routeGeneration; controller.openMember(member); }
   });
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { for (const menu of document.querySelectorAll('.top-menu')) menu.open = false; return; }
+    if (event.key === 'Escape') { for (const menu of document.querySelectorAll('.top-menu')) menu.open = false; $('editor-find').classList.add('hidden'); return; }
+    if (!document.querySelector('dialog[open]') && event.altKey && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); runFormat(); return; }
+    if (!document.querySelector('dialog[open]') && event.altKey && event.key.toLowerCase() === 'z') { event.preventDefault(); editorOption('lineWrapping'); return; }
     if (document.querySelector('dialog[open]') || !(event.ctrlKey || event.metaKey) || event.altKey) return;
     const key = event.key.toLowerCase();
     if (key === 'tab') { event.preventDefault(); controller.cycle(event.shiftKey ? -1 : 1); }
     if (key === 'o') { event.preventDefault(); pickPath(event.shiftKey); }
     if (key === 's') { event.preventDefault(); controller.save(); }
-    if (key === 'f') { event.preventDefault(); showNavigation('search'); $('query').focus(); $('query').select(); }
+    if (key === 'h') { event.preventDefault(); showEditorFind(); }
+    if (key === 'f') { event.preventDefault(); if (controller.state.editing || controller.state.doc?.viewerId === 'text') showEditorFind(false); else { showNavigation('search'); $('query').focus(); $('query').select(); } }
     if (key === 'b') { event.preventDefault(); toggleNavigation(); }
     if (key === 'w') { event.preventDefault(); ++routeGeneration; controller.close(); }
   });
@@ -419,6 +487,12 @@ async function wireDesktop() {
       if (action === 'associations') associationDialog.show();
       if (action === 'about') $('about-dialog').showModal();
       if (action === 'appearance') $('appearance-dialog').showModal();
+      if (action === 'format') runFormat();
+      if (action === 'replace') showEditorFind();
+      if (action === 'binary') alternateView('hex');
+      if (action === 'normal') alternateView(null);
+      if (action === 'text') alternateView('text');
+      if (['lineNumbers', 'lineWrapping'].includes(action)) editorOption(action);
       if (action === 'close') { ++routeGeneration; controller.close(); }
       if (action === 'quit') tauri.window?.getCurrentWindow().close().catch(error => controller.fail('无法关闭窗口', error));
     });
@@ -447,4 +521,4 @@ async function wireDesktop() {
 }
 
 wire(); render(controller.state); renderTree(workspace.state); wireDesktop();
-export { controller, workspace, pluginCenter, openDocument, routePath, navigateBlock };
+export { controller, workspace, pluginCenter, codeEditor, openDocument, routePath, navigateBlock };

@@ -181,3 +181,17 @@ fn lazy_search_returns_continuation_before_scanning_entire_file() {
     assert_eq!(second.hits[0].block, 272);
     assert!(second.next.is_none());
 }
+
+#[test]
+fn utf16_bom_text_larger_than_one_mebibyte_is_decoded_before_paging() {
+    use vw_core::Viewer;
+    use vw_protocol::{OpenOptions, Source};
+    let text = "中文\r\n".repeat(150000);
+    let bytes = vw_protocol::TextFile::encode(&text, "utf-16le", true).unwrap();
+    assert!(bytes.len() > 1024 * 1024);
+    let path = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("large-utf16.txt");
+    std::fs::write(&path, bytes).unwrap();
+    let doc = vw_plugin_text::TextViewer::new(&["txt"], 50).open(&Source::path(path), &OpenOptions::default()).unwrap();
+    assert!(doc.as_editable().is_some());
+    assert_eq!(doc.as_editable().unwrap().snapshot().unwrap(), vw_protocol::EditSnapshot::text(text));
+}

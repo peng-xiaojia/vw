@@ -26,7 +26,7 @@ pub struct ViewerDecl {
     pub extensions: Vec<String>,
     #[serde(default)]
     pub mime: Vec<String>,
-    /// `view` 与 `edit`；未声明 `edit` 即只读。
+    /// `view`、`edit`、`format`、`outline`；未声明 `edit` 即只读。
     #[serde(default)]
     pub capabilities: Vec<String>,
 }
@@ -144,7 +144,7 @@ impl Manifest {
         .expect("内置 manifest 构造错误")
     }
 
-    /// 某个 viewer 声明的能力（"view" / "edit"）。
+    /// 某个 viewer 声明的查看、编辑、格式化与目录能力。
     pub fn capabilities_of(&self, viewer_id: &str) -> Vec<String> {
         self.contributes
             .viewers
@@ -181,8 +181,8 @@ impl Manifest {
                 return Err("viewer id 不能为空".into());
             }
             for c in &v.capabilities {
-                if c != "view" && c != "edit" {
-                    return Err(format!("未知能力：{c}（只允许 view / edit）"));
+                if !matches!(c.as_str(), "view" | "edit" | "format" | "outline") {
+                    return Err(format!("未知能力：{c}（只允许 view / edit / format / outline）"));
                 }
             }
         }

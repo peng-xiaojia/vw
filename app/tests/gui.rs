@@ -64,6 +64,65 @@ fn gui_open_page_search_save_roundtrip() {
 }
 
 #[test]
+fn common_scripts_plugin_capabilities_encoding_and_hex_are_dispatched_by_framework() {
+    let mut registry = Registry::new();
+    vw_std::register_builtins(&mut registry);
+    let state = AppState::with_registry(registry);
+    for extension in ["sh", "bat", "cmd", "ps1", "js", "ts", "py", "rs"] {
+        let path = write(&format!("source.{extension}"), b"echo hello\r\n");
+        let info = state.open_impl(path.to_str().unwrap(), None, None).unwrap();
+        assert_eq!(info.viewer_id, "text"); assert!(info.editable);
+        let hex = state.open_impl(path.to_str().unwrap(), Some("hex".into()), None).unwrap();
+        assert_eq!(hex.viewer_id, "hex"); assert!(!hex.editable);
+        assert_eq!(state.snapshot_impl(&info.handle).unwrap(), "echo hello\r\n");
+        if extension == "js" { assert_eq!(info.format.unwrap().parser.as_deref(), Some("babel")); }
+        state.close_impl(&info.handle).unwrap(); state.close_impl(&hex.handle).unwrap();
+    }
+    let path = write("format-plugin.json", br#"{"nested":{"n":1}}"#);
+    let info = state.open_impl(path.to_str().unwrap(), None, None).unwrap();
+    assert!(info.capabilities.iter().any(|s| s == "format"));
+    let formatted = state.format_impl(&info.handle, r#"{"nested":{"n":1}}"#).unwrap();
+    assert!(formatted.contains("\n  \"nested\""));
+    assert!(state.format_impl(&info.handle, "invalid").is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), br#"{"nested":{"n":1}}"#);
+    state.save_encoding_impl(&info.handle, "{\"中文\":1}\r\n", Some("utf-16le")).unwrap();
+    assert!(std::fs::read(&path).unwrap().starts_with(&[0xff, 0xfe]));
+    assert!(state.snapshot_impl(&info.handle).unwrap().contains("中文"));
+    let before = std::fs::read(&path).unwrap();
+    assert!(state.save_encoding_impl(&info.handle, "invalid", Some("utf-8")).is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+    state.close_impl(&info.handle).unwrap();
+
+    let gbk = vw_protocol::TextFile::encode("中文\r\n", "gbk", false).unwrap();
+    let path = write("encoding.log", &gbk);
+    let info = state.open_impl(path.to_str().unwrap(), None, None).unwrap();
+    assert!(!info.editable);
+    assert!(state.reopen_encoding_impl(&info.handle, "utf-8").is_err());
+    let info = state.reopen_encoding_impl(&info.handle, "gbk").unwrap();
+    assert!(info.editable);
+    assert_eq!(state.snapshot_impl(&info.handle).unwrap(), "中文\r\n");
+    assert!(state.save_impl(&info.handle, "😀").is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), gbk);
+    state.save_encoding_impl(&info.handle, "中文 😀\n", Some("utf-8")).unwrap();
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "中文 😀\n");
+    state.close_impl(&info.handle).unwrap();
+}
+
+#[test]
+fn default_gui_registry_selects_office_for_legacy_formats() {
+    let mut registry = Registry::new(); vw_std::register_builtins(&mut registry);
+    let state = AppState::with_registry(registry);
+    for name in ["simple-table.doc", "any_sheets.xls"] {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../plugins/office/tests/fixtures").join(name);
+        let info = state.open_impl(path.to_str().unwrap(), None, None).unwrap();
+        assert_eq!(info.viewer_id, "office"); assert!(!info.editable);
+        let page = state.page_impl(&info.handle, 0, 100).unwrap();
+        assert!(page["blocks"].as_array().unwrap().iter().any(|b| b["kind"] == "table"));
+        state.close_impl(&info.handle).unwrap();
+    }
+}
+
+#[test]
 fn gui_open_member_via_zip() {
     // 归档成员打开（GUI 双击成员行路径）
     use std::io::Write;

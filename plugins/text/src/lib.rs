@@ -41,7 +41,7 @@ impl TextViewer {
                 id,
                 viewer_id,
                 extensions,
-                &["view", "edit"],
+                &["view", "edit", "format"],
                 priority,
             ),
             viewer_id: viewer_id.into(),
@@ -84,15 +84,16 @@ impl Viewer for TextViewer {
         self.probe_score(source)
     }
 
-    fn open(&self, source: &Source, _opts: &OpenOptions) -> Result<Box<dyn Doc>, PluginError> {
+    fn open(&self, source: &Source, opts: &OpenOptions) -> Result<Box<dyn Doc>, PluginError> {
         let path = source
             .as_fs_path()
             .ok_or_else(|| PluginError::malformed("文本插件只支持本地路径源"))?;
         let title = path.file_name().map(|n| n.to_string_lossy().to_string());
-        let core = TextCore::from_path(path, title)?;
+        let core = TextCore::from_path_encoding(path, title, opts.encoding.as_deref())?;
         Ok(Box::new(TextDocView {
             viewer_id: self.viewer_id.clone(),
             core,
+            extension: path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase(),
         }))
     }
 }
@@ -100,9 +101,21 @@ impl Viewer for TextViewer {
 struct TextDocView {
     viewer_id: String,
     core: TextCore,
+    extension: String,
 }
 
 impl Doc for TextDocView {
+    fn format_support(&self) -> Option<vw_protocol::FormatSupport> {
+        let parser = match self.extension.as_str() {
+            "js" | "mjs" | "cjs" | "jsx" => "babel",
+            "ts" | "tsx" | "mts" | "cts" => "typescript",
+            "html" | "htm" => "html",
+            "css" | "scss" | "less" => "css",
+            "yaml" | "yml" => "yaml",
+            _ => return None,
+        };
+        Some(vw_protocol::FormatSupport { provider: "prettier".into(), parser: Some(parser.into()) })
+    }
     fn meta(&self) -> DocMeta {
         DocMeta {
             viewer: self.viewer_id.clone(),
@@ -131,6 +144,9 @@ impl Doc for TextDocView {
 }
 
 impl EditableDoc for TextDocView {
+    fn serialize_with_encoding(&self, edited: &EditSnapshot, encoding: Option<&str>) -> Result<Vec<u8>, PluginError> {
+        self.core.serialize_with_encoding(edited, encoding)
+    }
     fn edit_capability(&self) -> EditCapability {
         self.core.edit_capability()
     }

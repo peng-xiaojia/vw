@@ -11,11 +11,16 @@ pub fn install(app: &tauri::App) -> tauri::Result<()> {
         .text("export", "导出副本…").separator()
         .item(&item("close", "关闭文档", "CmdOrCtrl+W")?)
         .text("cancel", "取消打开").separator().text("quit", "退出").build()?;
-    let edit = SubmenuBuilder::new(app, "编辑(&E)").text("edit", "编辑文档").text("preview", "预览文档").build()?;
+    let edit = SubmenuBuilder::new(app, "编辑(&E)").text("edit", "编辑文档").text("preview", "预览文档")
+        .separator().item(&item("format", "格式化文档", "Shift+Alt+F")?)
+        .item(&item("replace", "查找 / 替换…", "CmdOrCtrl+H")?).build()?;
     let view = SubmenuBuilder::new(app, "视图(&V)")
         .item(&item("sidebar", "显示 / 隐藏侧栏", "CmdOrCtrl+B")?)
         .text("files", "文件导航").text("outline", "文档目录")
         .item(&item("search", "文档内搜索", "CmdOrCtrl+F")?)
+        .separator().text("lineNumbers", "显示 / 隐藏行号")
+        .item(&item("lineWrapping", "自动换行", "Alt+Z")?)
+        .text("binary", "以二进制查看").text("normal", "默认格式查看").text("text", "以文本查看")
         .separator().text("appearance", "外观设置…").build()?;
     let plugins = SubmenuBuilder::new(app, "插件(&P)").text("plugins", "插件中心…").build()?;
     let help = SubmenuBuilder::new(app, "帮助(&H)").text("about", "关于 vw…").build()?;

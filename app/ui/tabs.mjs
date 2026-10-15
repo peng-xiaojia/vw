@@ -91,6 +91,14 @@ export class DocumentTabs {
   edit() { return this.closing ? Promise.resolve(false) : (this.active?.controller ?? this.empty).edit(); }
   preview() { return this.closing ? Promise.resolve(false) : (this.active?.controller ?? this.empty).preview(); }
   setDraft(text) { if (!this.closing) return (this.active?.controller ?? this.empty).setDraft(text); }
+  async setTextOptions(options) {
+    const tab = this.active;
+    if (this.closing || !tab || !(await tab.controller.edit())) return false;
+    if (this.closing || !this.tabs.includes(tab)) return false;
+    tab.controller.setTextOptions(options); return true;
+  }
+  reopenEncoding(encoding) { return this.closing ? Promise.resolve(false) : this.active?.controller.reopenEncoding(encoding); }
+  format(formatter) { return this.closing ? Promise.resolve(false) : this.active?.controller.format(formatter); }
   save() { return this.closing ? Promise.resolve(false) : (this.active?.controller ?? this.empty).save(); }
   loadMore() { return (this.active?.controller ?? this.empty).loadMore(); }
   ensureBlock(index) { return (this.active?.controller ?? this.empty).ensureBlock(index); }

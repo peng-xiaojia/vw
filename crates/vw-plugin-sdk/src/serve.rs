@@ -32,6 +32,10 @@ pub trait RpcViewer: Send + Sync {
 
 pub trait RpcDoc: Send + Sync {
     fn meta(&self) -> DocMeta;
+    fn format_support(&self) -> Option<vw_protocol::FormatSupport> { None }
+    fn format_text(&self, _text: &str, _cancel: CancelFlag) -> Result<String, PluginError> {
+        Err(PluginError::unsupported("该插件未提供格式化功能"))
+    }
 
     fn outline(&self) -> Option<Outline> {
         None
@@ -192,6 +196,16 @@ fn dispatch(state: &ServeState, viewer: &Arc<dyn RpcViewer>, req: &Request, canc
         "meta" => with_doc(state, req, |entry, id| {
             Response::ok(id, serde_json::to_value(entry.doc.meta()).unwrap_or(serde_json::Value::Null))
         }),
+        "formatSupport" => with_doc(state, req, |entry, id| {
+            Response::ok(id, serde_json::to_value(entry.doc.format_support()).unwrap())
+        }),
+        "format" => {
+            let text = req.params.get("text").and_then(|v| v.as_str()).unwrap_or("").to_owned();
+            with_doc(state, req, |entry, id| match entry.doc.format_text(&text, cancel) {
+                Ok(text) => Response::ok(id, serde_json::json!(text)),
+                Err(err) => Response::err(id, err),
+            })
+        },
         "outline" => with_doc(state, req, |entry, id| {
             match entry.doc.outline() {
                 Some(o) => Response::ok(id, serde_json::to_value(o).unwrap_or(serde_json::Value::Null)),

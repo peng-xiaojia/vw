@@ -8,3 +8,4 @@ description = "vw 文件查看器：IR 与 RPC 消息的共享定义（core 与�
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+encoding_rs = "0.8"

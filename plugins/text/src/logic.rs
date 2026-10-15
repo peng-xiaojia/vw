@@ -135,7 +135,10 @@ impl LazyText {
 impl TextCore {
     pub fn from_bytes(bytes: &[u8], title: Option<String>) -> Self {
         let edit = vw_protocol::TextFile::from_bytes(bytes, EDIT_MAX_BYTES);
-        let size = bytes.len() as u64;
+        Self::from_decoded(bytes.len() as u64, title, edit)
+    }
+
+    fn from_decoded(size: u64, title: Option<String>, edit: vw_protocol::TextFile) -> Self {
         // split_inclusive 保留每行行尾（含 \r\n），块拼接即原文。
         let chunks: Vec<&str> = if edit.text.is_empty() {
             vec![]
@@ -163,17 +166,32 @@ impl TextCore {
 
     /// Small files retain lossless editing; larger files keep bounded, lazy read-only pages.
     pub fn from_path(path: &Path, title: Option<String>) -> Result<Self, PluginError> {
+        Self::from_path_encoding(path, title, None)
+    }
+
+    pub fn from_path_encoding(path: &Path, title: Option<String>, encoding: Option<&str>) -> Result<Self, PluginError> {
         let mut file = std::fs::File::open(path)?;
         let size = file.metadata()?.len();
-        if size <= EAGER_MAX_BYTES {
+        let mut prefix = [0; 3];
+        let prefix_len = file.read(&mut prefix)?;
+        file.seek(SeekFrom::Start(0))?;
+        let utf16 = prefix_len >= 2 && (prefix[..2] == [0xff, 0xfe] || prefix[..2] == [0xfe, 0xff]);
+        if size <= EAGER_MAX_BYTES || (encoding.is_some() || utf16) && size <= EDIT_MAX_BYTES {
             let mut bytes = Vec::new();
-            file.take(EAGER_MAX_BYTES + 1).read_to_end(&mut bytes)?;
-            if bytes.len() as u64 > EAGER_MAX_BYTES {
+            file.take(EDIT_MAX_BYTES + 1).read_to_end(&mut bytes)?;
+            if bytes.len() as u64 > EDIT_MAX_BYTES {
                 return Err(PluginError::conflict("文件在打开期间增长"));
             }
-            let mut core = Self::from_bytes(&bytes, title);
-            core.edit.max_bytes = EAGER_MAX_BYTES;
+            let edit = match encoding {
+                Some(label) => vw_protocol::TextFile::decode(&bytes, EDIT_MAX_BYTES, Some(label))?,
+                None => vw_protocol::TextFile::from_bytes(&bytes, EDIT_MAX_BYTES),
+            };
+            let mut core = Self::from_decoded(bytes.len() as u64, title, edit);
+            core.edit.max_bytes = EDIT_MAX_BYTES;
             return Ok(core);
+        }
+        if utf16 || encoding.is_some_and(|e| !e.eq_ignore_ascii_case("utf-8")) {
+            return Err(PluginError::unsupported("大于 64 MiB 的文件仅提供 UTF-8 分页或二进制查看"));
         }
         let mut head = [0; 3];
         file.read_exact(&mut head)?;
@@ -225,6 +243,13 @@ impl TextCore {
             return Err(PluginError::unsupported("编辑结果超出大小上限"));
         }
         self.edit.serialize(edited)
+    }
+
+    pub fn serialize_with_encoding(&self, edited: &EditSnapshot, encoding: Option<&str>) -> Result<Vec<u8>, PluginError> {
+        if !self.editable() { return Err(PluginError::unsupported("该文件只读")); }
+        let bytes = self.edit.serialize_as(edited, encoding)?;
+        if bytes.len() as u64 > self.edit.max_bytes { return Err(PluginError::unsupported("编辑结果超出大小上限")); }
+        Ok(bytes)
     }
 
     pub fn page(&self, range: PageRange) -> Result<BlockList, PluginError> {

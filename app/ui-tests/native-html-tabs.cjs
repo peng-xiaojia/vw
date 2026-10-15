@@ -67,7 +67,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   await frame.getByRole('button', { name: 'Click', exact: true }).click();
   await activeFrame().evaluate(() => scrollTo(0, 600));
   await page.getByRole('tab', { name: '草稿.txt' }).click();
-  await page.locator('#editor').fill('Unsaved draft\n');
+  await page.locator('.CodeMirror').click(); await page.keyboard.press('Control+a'); await page.keyboard.insertText('Unsaved draft\n');
   await page.getByRole('tab', { name: 'preview.html' }).click();
   assert.equal(await frame.getByRole('button').textContent(), 'Clicked');
   assert.equal(await activeFrame().evaluate(() => scrollY), 600);

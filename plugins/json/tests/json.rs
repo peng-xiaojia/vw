@@ -24,6 +24,20 @@ fn whole_json_pretty_prints_and_outlines_top_keys() {
 }
 
 #[test]
+fn formatting_keeps_duplicate_keys_numeric_literals_and_order() {
+    let source = r#"{"z":18446744073709551617,"z":2,"escaped":"a\" b", "a": []}"#;
+    let path = write_tmp("format-lexical.json", source.as_bytes());
+    let doc = JsonViewer::new(&["json"], 50).open(&Source::path(&path), &OpenOptions::default()).unwrap();
+    let text = doc.format_text(source).unwrap();
+    assert_eq!(text.matches("\"z\"").count(), 2);
+    assert!(text.contains("18446744073709551617"));
+    assert!(text.find("\"z\"").unwrap() < text.find("\"a\"").unwrap());
+    assert!(text.contains(r#""escaped": "a\" b""#));
+    assert_eq!(doc.format_text(&text).unwrap(), text);
+    assert!(doc.format_text("{bad}").is_err());
+}
+
+#[test]
 fn jsonl_splits_per_line() {
     let f = write_tmp("b.jsonl", b"{\"a\":1}\n{\"b\":2}\n\n{\"c\":3}\n");
     let v = JsonViewer::new(&["jsonl"], 50);

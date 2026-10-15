@@ -21,7 +21,7 @@ pub struct MarkdownViewer {
 impl MarkdownViewer {
     pub fn new(extensions: &[&str], priority: i64) -> Self {
         Self {
-            manifest: Manifest::simple_in_process("vw.markdown", "markdown", extensions, &["view", "edit"], priority),
+            manifest: Manifest::simple_in_process("vw.markdown", "markdown", extensions, &["view", "edit", "outline", "format"], priority),
             viewer_id: "markdown".into(),
             extensions: extensions.iter().map(|s| s.to_lowercase()).collect(),
         }
@@ -285,6 +285,10 @@ struct MarkdownDoc {
 }
 
 impl Doc for MarkdownDoc {
+    fn format_support(&self) -> Option<vw_protocol::FormatSupport> {
+        Some(vw_protocol::FormatSupport { provider: "prettier".into(), parser: Some("markdown".into()) })
+    }
+
     fn meta(&self) -> DocMeta {
         DocMeta {
             viewer: self.viewer_id.clone(),
@@ -323,6 +327,9 @@ impl Doc for MarkdownDoc {
 }
 
 impl EditableDoc for MarkdownDoc {
+    fn serialize_with_encoding(&self, edited: &EditSnapshot, encoding: Option<&str>) -> Result<Vec<u8>, PluginError> {
+        self.file.serialize_as(edited, encoding)
+    }
     fn edit_capability(&self) -> EditCapability {
         self.file.capability()
     }
@@ -361,14 +368,14 @@ impl Viewer for MarkdownViewer {
         }
     }
 
-    fn open(&self, source: &Source, _opts: &OpenOptions) -> Result<Box<dyn Doc>, PluginError> {
+    fn open(&self, source: &Source, opts: &OpenOptions) -> Result<Box<dyn Doc>, PluginError> {
         let path = source
             .as_fs_path()
             .ok_or_else(|| PluginError::malformed("Markdown 插件只支持本地路径源"))?;
         let bytes = std::fs::read(path)?;
         let size = bytes.len() as u64;
         let title = path.file_name().map(|n| n.to_string_lossy().to_string());
-        let file = TextFile::from_bytes(&bytes, EDIT_MAX_BYTES);
+        let file = TextFile::decode(&bytes, EDIT_MAX_BYTES, opts.encoding.as_deref())?;
         let blocks = parse_markdown(&file.text);
         let outline = outline_of(&blocks);
         Ok(Box::new(MarkdownDoc { viewer_id: self.viewer_id.clone(), file, blocks, outline, title, size }))

@@ -1,7 +1,8 @@
 // Document state has one owner. The bridge is injected so races can be tested without a WebView.
 const normalized = text => String(text).replace(/\r\n?/gu, '\n');
 
-function storageText(draft, snapshot) {
+function storageText(draft, snapshot, explicit = null) {
+  if (explicit && explicit !== 'preserve') return normalized(draft).replace(/\n/gu, { lf: '\n', crlf: '\r\n', cr: '\r' }[explicit]);
   const endings = new Set(String(snapshot).match(/\r\n|\r|\n/gu) ?? []);
   if (endings.size > 1) throw new Error('此文件混用多种换行符，当前编辑器无法无损保存；请保留原文件并使用支持混合换行符的编辑器。');
   const ending = endings.values().next().value || '\n';
@@ -19,6 +20,7 @@ export class DocumentController {
       draft: '', snapshot: null, dirty: false, editing: false, hits: [], query: '',
       searchLimited: false, requestGeneration: 0, revision: 0,
       opening: false, loading: false, saving: false, searching: false, exporting: false,
+      formatting: false, saveEncoding: null, lineEnding: 'preserve',
       error: '', status: '打开文件或文件夹，也可以将文件拖到窗口中。',
     };
     this.pageRequest = null;
@@ -41,7 +43,9 @@ export class DocumentController {
     catch (error) { this.fail('释放文档失败', error); }
   }
 
-  async guard() {
+  async guard({ skipReopen = false } = {}) {
+    if (this.formatRequest) await this.formatRequest;
+    if (this.reopenRequest && !skipReopen) await this.reopenRequest;
     if (this.saveRequest) await this.saveRequest;
     if (!this.state.dirty) return true;
     if (this.guardRequest) return this.guardRequest;
@@ -89,6 +93,7 @@ export class DocumentController {
         blocks: [], viewStart: 0, loaded: 0, total: null, outline: outline ?? [],
         snapshot: htmlSource, draft: htmlSource === null ? '' : normalized(htmlSource), dirty: false, editing: false, hits: [], query: '',
         searchLimited: false, loading: false, searching: false, error: '',
+        formatting: false, saveEncoding: null, lineEnding: 'preserve',
       });
       this.acceptPage(page);
       this.state.status = this.pageStatus();
@@ -243,9 +248,62 @@ export class DocumentController {
   setDraft(text) {
     if (!this.state.doc?.editable || this.state.saving || this.state.opening) return;
     this.state.draft = normalized(text);
-    this.state.dirty = this.state.draft !== normalized(this.state.snapshot);
+    this.state.dirty = this.state.draft !== normalized(this.state.snapshot) || this.state.saveEncoding !== null || this.state.lineEnding !== 'preserve';
     this.state.status = this.state.dirty ? '有未保存修改' : '编辑中';
     this.emit();
+  }
+
+  setTextOptions({ encoding, lineEnding } = {}) {
+    if (!this.state.doc?.editable || this.state.snapshot === null || this.state.saving || this.state.opening) return false;
+    if (encoding !== undefined) this.state.saveEncoding = encoding || null;
+    if (lineEnding !== undefined && ['preserve', 'lf', 'crlf', 'cr'].includes(lineEnding)) this.state.lineEnding = lineEnding;
+    this.setDraft(this.state.draft);
+    return true;
+  }
+
+  format(formatter) {
+    if (!this.state.doc?.format || this.formatRequest || this.state.saving || this.state.opening) return Promise.resolve(false);
+    const request = (async () => {
+      if (!(await this.edit())) return false;
+      const doc = this.state.doc, revision = this.state.revision, draft = this.state.draft;
+      this.state.formatting = true; this.emit();
+      try {
+        const text = await formatter(doc, draft);
+        if (!this.matches(doc, revision) || this.state.draft !== draft) return false;
+        this.setDraft(text); this.state.status = '格式化完成 · 尚未保存';
+        return true;
+      } catch (error) { if (this.matches(doc, revision)) this.fail('格式化失败', error); return false; }
+      finally { this.state.formatting = false; this.emit(); }
+    })();
+    this.formatRequest = request;
+    request.finally(() => { if (this.formatRequest === request) this.formatRequest = null; });
+    return request;
+  }
+
+  reopenEncoding(encoding) {
+    if (!this.state.doc || this.reopenRequest || this.state.saving || this.state.opening) return Promise.resolve(false);
+    const request = (async () => {
+      if (!(await this.guard({ skipReopen: true }))) return false;
+      const doc = this.state.doc, revision = this.state.revision;
+      this.state.saving = true; this.emit();
+      try {
+        const info = await this.invoke('vw_reopen_encoding', { handle: doc.handle, encoding });
+        const [page, outline, text] = await Promise.all([
+          this.invoke('vw_page', { handle: doc.handle, start: 0, count: this.pageSize }),
+          this.invoke('vw_outline', { handle: doc.handle }), this.invoke('vw_snapshot', { handle: doc.handle }),
+        ]);
+        if (!this.matches(doc, revision)) return false;
+        Object.assign(doc, info); ++this.state.revision; ++this.state.viewGeneration; ++this.searchGeneration;
+        this.pageRequest = null;
+        Object.assign(this.state, { blocks: [], loaded: 0, viewStart: 0, outline: outline ?? [], snapshot: text, draft: normalized(text),
+          saveEncoding: null, lineEnding: 'preserve', dirty: false, editing: true, hits: [], query: '', loading: false, error: '', status: `已使用 ${encoding} 重新解码` });
+        this.acceptPage(page); return true;
+      } catch (error) { if (this.matches(doc, revision)) this.fail('重新解码失败', error); return false; }
+      finally { this.state.saving = false; this.emit(); }
+    })();
+    this.reopenRequest = request;
+    request.finally(() => { if (this.reopenRequest === request) this.reopenRequest = null; });
+    return request;
   }
   async preview() {
     if (!this.state.editing) return true;
@@ -274,11 +332,12 @@ export class DocumentController {
 
   save() {
     if (this.saveRequest) return this.saveRequest;
+    if (this.state.saving) return Promise.resolve(false);
     const doc = this.state.doc;
     if (!doc?.editable || this.state.snapshot === null || this.state.opening) return Promise.resolve(false);
     if (!this.state.dirty) { this.preview(); return Promise.resolve(true); }
     let text;
-    try { text = storageText(this.state.draft, this.state.snapshot); }
+    try { text = storageText(this.state.draft, this.state.snapshot, this.state.lineEnding); }
     catch (error) { this.fail('无法无损保存', error); return Promise.resolve(false); }
     this.state.saving = true;
     this.state.status = '正在保存…';
@@ -294,7 +353,7 @@ export class DocumentController {
     this.saveRequest = (async () => {
       let wrote = false;
       try {
-        const result = await this.invoke('vw_save', { handle: doc.handle, text });
+        const result = await this.invoke('vw_save', { handle: doc.handle, text, ...(this.state.saveEncoding ? { encoding: this.state.saveEncoding } : {}) });
         wrote = true;
         if (!this.matches(doc, revision)) return false;
         // Never reuse blocks or outline from before a successful write.
@@ -308,7 +367,7 @@ export class DocumentController {
         if (!this.matches(doc, revision)) return false;
         if (result.info) Object.assign(doc, result.info, { editable: Boolean(result.info.editable) && doc.inner === null && result.info.viewerId !== 'archive' });
         this.acceptPage(page);
-        Object.assign(this.state, { outline: outline ?? [], snapshot, draft: normalized(snapshot), dirty: false, editing: false });
+        Object.assign(this.state, { outline: outline ?? [], snapshot, draft: normalized(snapshot), dirty: false, editing: false, saveEncoding: null, lineEnding: 'preserve' });
         this.state.status = `已保存 ${result.bytes} 字节${result.backup ? ' · 已创建备份' : ''}`;
         return true;
       } catch (error) {

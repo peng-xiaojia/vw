@@ -3,9 +3,10 @@ use std::collections::HashSet;
 
 const GROUPS: &[(&str, &[&str])] = &[
     ("文本与数据", &["txt", "log", "md", "markdown", "html", "htm", "json", "jsonl", "csv", "tsv", "ini", "toml", "cfg"]),
+    ("代码与脚本", &["sh", "bash", "bat", "cmd", "ps1", "js", "mjs", "cjs", "jsx", "ts", "tsx", "py", "rs", "go", "c", "h", "cpp", "java", "sql", "xml", "css", "yaml", "yml"]),
     ("归档", &["zip"]),
     ("图片", &["png", "jpg", "jpeg", "gif", "webp", "bmp"]),
-    ("文档", &["pdf", "docx", "xlsx", "pptx"]),
+    ("文档", &["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"]),
 ];
 
 #[derive(Serialize)]

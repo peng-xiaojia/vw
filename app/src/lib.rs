@@ -67,6 +67,9 @@ pub struct DocInfo {
     pub source_display: String,
     pub editable: bool,
     pub path: String,
+    pub format: Option<vw_protocol::FormatSupport>,
+    pub edit_options: Option<vw_protocol::EditCapability>,
+    pub capabilities: Vec<String>,
 }
 
 fn info_of(handle: &str, doc: &OpenedDoc) -> DocInfo {
@@ -82,6 +85,15 @@ fn info_of(handle: &str, doc: &OpenedDoc) -> DocInfo {
         source_display: doc.source.display(),
         editable,
         path: doc.path.display().to_string(),
+        format: doc.format_support(),
+        edit_options: doc.edit_capability(),
+        capabilities: {
+            let mut caps = vec!["view".into()];
+            if editable { caps.push("edit".into()); }
+            if doc.format_support().is_some() { caps.push("format".into()); }
+            if doc.outline().is_some() { caps.push("outline".into()); }
+            caps
+        },
     }
 }
 
@@ -172,8 +184,22 @@ impl AppState {
     }
 
     pub fn save_impl(&self, handle: &str, text: &str) -> Result<SaveReportDto, PluginError> {
+        self.save_encoding_impl(handle, text, None)
+    }
+
+    pub fn format_impl(&self, handle: &str, text: &str) -> Result<String, PluginError> {
+        self.get(handle)?.format_text(text)
+    }
+
+    pub fn reopen_encoding_impl(&self, handle: &str, encoding: &str) -> Result<DocInfo, PluginError> {
         let doc = self.get(handle)?;
-        let r = doc.save_text(text.to_string())?;
+        doc.reopen_encoding(encoding)?;
+        Ok(info_of(handle, &doc))
+    }
+
+    pub fn save_encoding_impl(&self, handle: &str, text: &str, encoding: Option<&str>) -> Result<SaveReportDto, PluginError> {
+        let doc = self.get(handle)?;
+        let r = doc.save_text_with_encoding(text.to_string(), encoding)?;
         Ok(SaveReportDto {
             bytes: r.bytes,
             backup: r.backup.map(|b| b.display().to_string()),
@@ -349,9 +375,20 @@ async fn vw_save(
     state: tauri::State<'_, Arc<AppState>>,
     handle: String,
     text: String,
+    encoding: Option<String>,
 ) -> Result<SaveReportDto, String> {
     let state = state.inner().clone();
-    blocking(move || state.save_impl(&handle, &text)).await
+    blocking(move || state.save_encoding_impl(&handle, &text, encoding.as_deref())).await
+}
+#[tauri::command]
+async fn vw_format(state: tauri::State<'_, Arc<AppState>>, handle: String, text: String) -> Result<String, String> {
+    let state = state.inner().clone();
+    blocking(move || state.format_impl(&handle, &text)).await
+}
+#[tauri::command]
+async fn vw_reopen_encoding(state: tauri::State<'_, Arc<AppState>>, handle: String, encoding: String) -> Result<DocInfo, String> {
+    let state = state.inner().clone();
+    blocking(move || state.reopen_encoding_impl(&handle, &encoding)).await
 }
 #[tauri::command]
 async fn vw_close(state: tauri::State<'_, Arc<AppState>>, handle: String) -> Result<(), String> {
@@ -630,6 +667,8 @@ pub fn run_app() -> tauri::Result<()> {
             vw_snapshot,
             vw_preview_markdown,
             vw_save,
+            vw_format,
+            vw_reopen_encoding,
             vw_close,
             vw_pick_path,
             vw_pick_files,

@@ -126,8 +126,8 @@ const server = http.createServer((request, response) => {
     assert.equal(await page.locator('#content').evaluate(element => parseInt(getComputedStyle(element).fontSize, 10)), beforeZoom + 1);
     if (!(await page.locator('#btn-edit').isVisible())) await page.locator('#top-menu summary').filter({ hasText: '编辑' }).click();
     await page.locator('#btn-edit').click();
-    assert.equal(await page.locator('#editor').isVisible(), true);
-    await page.locator('#editor').fill('# Fresh');
+    assert.equal(await page.locator('.CodeMirror').isVisible(), true);
+    await page.locator('.CodeMirror').click(); await page.keyboard.press('Control+a'); await page.keyboard.insertText('# Fresh');
     if (!(await page.locator('#btn-preview').isVisible())) await page.locator('#top-menu summary').filter({ hasText: '编辑' }).click();
     await page.locator('#btn-preview').click();
     assert.equal(await page.locator('#content').isVisible(), true);

@@ -1,6 +1,7 @@
 //! vw 内置插件：JSON / JSONL。
 
 use std::io::Read;
+mod format;
 
 use vw_core::viewer::{Doc, EditableDoc, Viewer};
 use vw_protocol::{
@@ -30,7 +31,7 @@ pub struct JsonViewer {
 impl JsonViewer {
     pub fn new(extensions: &[&str], priority: i64) -> Self {
         Self {
-            manifest: Manifest::simple_in_process("vw.json", "json", extensions, &["view", "edit"], priority),
+            manifest: Manifest::simple_in_process("vw.json", "json", extensions, &["view", "edit", "outline", "format"], priority),
             viewer_id: "json".into(),
             extensions: extensions.iter().map(|s| s.to_lowercase()).collect(),
         }
@@ -112,6 +113,18 @@ struct JsonDoc {
 }
 
 impl Doc for JsonDoc {
+    fn format_support(&self) -> Option<vw_protocol::FormatSupport> {
+        Some(vw_protocol::FormatSupport { provider: "rpc".into(), parser: None })
+    }
+    fn format_text(&self, text: &str) -> Result<String, PluginError> {
+        validate_edited(text.as_bytes())?;
+        if self.mime == "application/x-ndjson" {
+            Ok(text.lines().filter(|l| !l.trim().is_empty()).map(|line| format::layout(line, false)).collect::<Vec<_>>().join("\n") + "\n")
+        } else {
+            Ok(format::layout(text, true) + "\n")
+        }
+    }
+
     fn meta(&self) -> DocMeta {
         DocMeta {
             viewer: self.viewer_id.clone(),
@@ -150,6 +163,11 @@ impl Doc for JsonDoc {
 }
 
 impl EditableDoc for JsonDoc {
+    fn serialize_with_encoding(&self, edited: &EditSnapshot, encoding: Option<&str>) -> Result<Vec<u8>, PluginError> {
+        let EditSnapshot::Text { text } = edited;
+        validate_edited(text.as_bytes())?;
+        self.file.serialize_as(edited, encoding)
+    }
     fn edit_capability(&self) -> EditCapability {
         self.file.capability()
     }
@@ -160,7 +178,8 @@ impl EditableDoc for JsonDoc {
 
     fn serialize(&self, edited: &EditSnapshot) -> Result<Vec<u8>, PluginError> {
         let bytes = self.file.serialize(edited)?;
-        validate_edited(&bytes)?;
+        let EditSnapshot::Text { text } = edited;
+        validate_edited(text.as_bytes())?;
         Ok(bytes)
     }
 }
@@ -188,17 +207,18 @@ impl Viewer for JsonViewer {
         }
     }
 
-    fn open(&self, source: &Source, _opts: &OpenOptions) -> Result<Box<dyn Doc>, PluginError> {
+    fn open(&self, source: &Source, opts: &OpenOptions) -> Result<Box<dyn Doc>, PluginError> {
         let path = source
             .as_fs_path()
             .ok_or_else(|| PluginError::malformed("JSON 插件只支持本地路径源"))?;
         let bytes = std::fs::read(path)?;
         let size = bytes.len() as u64;
         let title = path.file_name().map(|n| n.to_string_lossy().to_string());
-        let (blocks, mime, outline) = build_blocks(&bytes)?;
+        let file = TextFile::decode(&bytes, EDIT_MAX_BYTES, opts.encoding.as_deref())?;
+        let (blocks, mime, outline) = build_blocks(file.text.as_bytes())?;
         Ok(Box::new(JsonDoc {
             viewer_id: self.viewer_id.clone(),
-            file: TextFile::from_bytes(&bytes, EDIT_MAX_BYTES),
+            file,
             blocks,
             mime,
             outline,

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>vw · 文件查看器</title>
+  <link rel="stylesheet" href="vendor/codemirror/codemirror.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -23,12 +24,19 @@
       <details class="top-menu"><summary>编辑</summary><div class="menu-popup" role="menu">
         <button id="btn-edit" data-action="edit" role="menuitem">编辑文档</button>
         <button id="btn-preview" data-action="preview" role="menuitem">预览文档</button>
+        <hr /><button data-action="format" role="menuitem">格式化文档 <kbd>Shift+Alt+F</kbd></button>
+        <button data-action="replace" role="menuitem">查找 / 替换… <kbd>Ctrl+H</kbd></button>
       </div></details>
       <details class="top-menu"><summary>视图</summary><div class="menu-popup" role="menu">
         <button data-action="sidebar" role="menuitem">显示 / 隐藏侧栏 <kbd>Ctrl+B</kbd></button>
         <button data-action="files" role="menuitem">文件导航</button>
         <button data-action="outline" role="menuitem">文档目录</button>
         <button data-action="search" role="menuitem">文档内搜索 <kbd>Ctrl+F</kbd></button>
+        <hr /><button data-action="lineNumbers" role="menuitemcheckbox" aria-checked="true">显示行号</button>
+        <button data-action="lineWrapping" role="menuitemcheckbox" aria-checked="false">自动换行 <kbd>Alt+Z</kbd></button>
+        <button data-action="binary" role="menuitem">以二进制查看</button>
+        <button data-action="normal" role="menuitem">默认格式查看</button>
+        <button data-action="text" role="menuitem">以文本查看</button>
         <hr /><button data-action="appearance" role="menuitem">外观设置…</button>
       </div></details>
       <details class="top-menu"><summary>插件</summary><div class="menu-popup" role="menu"><button data-action="plugins" role="menuitem">插件中心…</button></div></details>
@@ -59,10 +67,13 @@
     <div id="sidebar-resizer" class="pane-resizer hidden" role="separator" aria-label="调整左侧栏宽度" aria-orientation="vertical" tabindex="0"></div>
     <section id="document-area" aria-label="文档">
       <div id="document-tabs" role="tablist" aria-label="已打开的文件"></div>
-      <div id="document-heading"><span id="document-info">选择文件开始阅读</span><div id="document-mode" class="hidden" role="group" aria-label="文档模式"><button id="mode-preview" type="button" aria-pressed="true">展示</button><button id="mode-source" type="button" aria-pressed="false">源码</button></div><button id="btn-outline" aria-label="文档目录" aria-controls="outline-panel" aria-expanded="false" title="文档目录"></button></div>
+      <div id="document-heading"><button id="mode-binary" type="button" title="保留当前文档，打开独立二进制标签">二进制</button><span id="document-info">选择文件开始阅读</span><div id="document-mode" class="hidden" role="group" aria-label="文档模式"><button id="mode-preview" type="button" aria-pressed="true">展示</button><button id="mode-source" type="button" aria-pressed="false">源码</button></div><button id="btn-outline" aria-label="文档目录" aria-controls="outline-panel" aria-expanded="false" title="文档目录"></button></div>
       <div id="error-banner" class="hidden" role="alert"><span id="error-text"></span><button id="btn-dismiss-error" aria-label="关闭错误提示">×</button></div>
       <div id="empty-state"><div class="empty-icon">▤</div><h1>打开文件，开始阅读</h1><p>从「文件」菜单选择文件，或将文件拖到窗口中。</p><p class="keyboard-hint">Ctrl+O 打开文件 · Ctrl+Shift+O 打开文件夹 · Ctrl+F 搜索</p></div>
-      <div id="document-body"><div id="reading-area"><div id="html-preview-host" class="hidden"></div><section id="content" tabindex="0" aria-label="文档预览"></section><textarea id="editor" class="hidden" spellcheck="false" aria-label="文档编辑器"></textarea></div><div id="outline-resizer" class="pane-resizer hidden" role="separator" aria-label="调整文档目录宽度" aria-orientation="vertical" tabindex="0"></div><aside id="outline-panel" class="hidden" aria-label="文档目录"><div class="outline-heading"><strong>文档目录</strong><div class="outline-actions"><button id="outline-collapse-all" type="button" title="全部折叠" aria-label="全部折叠">⇤</button><button id="outline-expand-all" type="button" title="全部展开" aria-label="全部展开">⇥</button></div></div><p id="outline-empty" class="side-caption">打开文档后显示目录。</p><ul id="outline" class="nav-list"></ul></aside></div>
+      <div id="document-body"><div id="reading-area"><section id="editor-find" class="hidden" aria-label="查找和替换">
+        <div><input id="edit-query" aria-label="查找文本" placeholder="查找文本" /><label><input id="edit-case" type="checkbox" />区分大小写</label><button id="edit-find-next">下一个</button><button id="edit-find-close" aria-label="收起替换">×</button></div>
+        <div id="replace-row"><input id="edit-replacement" aria-label="替换文本" placeholder="替换为（可留空）" /><button id="edit-replace">替换</button><button id="edit-replace-all">全部替换</button></div><output id="edit-find-result" role="status"></output>
+      </section><div id="html-preview-host" class="hidden"></div><section id="content" tabindex="0" aria-label="文档预览"></section><textarea id="editor" class="hidden" spellcheck="false" aria-label="文档编辑器"></textarea></div><div id="outline-resizer" class="pane-resizer hidden" role="separator" aria-label="调整文档目录宽度" aria-orientation="vertical" tabindex="0"></div><aside id="outline-panel" class="hidden" aria-label="文档目录"><div class="outline-heading"><strong>文档目录</strong><div class="outline-actions"><button id="outline-collapse-all" type="button" title="全部折叠" aria-label="全部折叠">⇤</button><button id="outline-expand-all" type="button" title="全部展开" aria-label="全部展开">⇥</button></div></div><p id="outline-empty" class="side-caption">打开文档后显示目录。</p><ul id="outline" class="nav-list"></ul></aside></div>
     </section>
     <section id="plugin-center" class="hidden" aria-label="插件中心">
       <div class="plugin-heading"><div><h1>插件中心</h1><p>按需扩展文件格式，保持主程序轻量。</p></div><button id="btn-close-plugins" aria-label="关闭插件中心">返回文档 ×</button></div>
@@ -74,7 +85,12 @@
       <section data-plugin-section="settings" class="hidden"><h2>安装位置</h2><p id="plugin-directory" class="plugin-path"></p><h2>分发方式</h2><p>市场发现带 vw-plugin 主题的 GitHub 仓库；安装使用 GitHub Releases 和本地 .vwpkg 包。DBX 的 .dbxp 包不能直接安装。</p><p id="plugin-platform"></p><h2>生效方式</h2><p>安装或卸载后，关闭程序并重新打开。当前文档可以继续阅读。</p><p>VW_PLUGIN_DIR 可覆盖插件目录；VW_PLUGIN_MIRROR 可配置下载镜像。</p></section>
     </section>
   </main>
-  <footer id="status-bar"><span id="status" role="status" aria-live="polite">就绪</span><div id="page-tools" class="hidden"><span id="page-progress"></span><button id="btn-more">加载更多</button></div></footer>
+  <footer id="status-bar"><span id="status" role="status" aria-live="polite">就绪</span><div id="text-tools" class="hidden" aria-label="文本文件选项">
+        <label>重新解码 <select id="reopen-encoding" aria-label="重新解码编码"><option value="">选择编码…</option></select></label>
+        <span id="current-encoding"></span>
+        <label>保存编码 <select id="save-encoding" aria-label="保存编码"><option value="">保持原编码</option></select></label>
+        <label>换行 <select id="line-ending" aria-label="换行格式"><option value="preserve">保持原换行</option><option value="lf">LF (Unix)</option><option value="crlf">CRLF (Windows)</option><option value="cr">CR (旧 Mac)</option></select></label>
+      </div><div id="page-tools" class="hidden"><span id="page-progress"></span><button id="btn-more">加载更多</button></div></footer>
   <div id="drop-overlay" class="hidden" aria-hidden="true">松开以打开文件或文件夹</div>
   <dialog id="dirty-dialog" aria-labelledby="dirty-title"><h2 id="dirty-title">保存当前修改？</h2><p id="dirty-description"></p><div class="dialog-actions"><button data-choice="cancel">取消</button><button data-choice="discard">不保存</button><button data-choice="save" class="primary">保存</button></div></dialog>
   <dialog id="plugin-dialog" aria-labelledby="plugin-confirm-title"><h2 id="plugin-confirm-title"></h2><div id="plugin-confirm-detail"></div><div class="dialog-actions"><button id="btn-plugin-cancel">取消</button><button id="btn-plugin-confirm" class="primary">安装</button></div></dialog>
@@ -82,6 +98,25 @@
   <dialog id="association-dialog" aria-labelledby="association-title"><h2 id="association-title">关联格式</h2><p>选择在 Windows「打开方式」中显示的格式。保存后可直接进入 vw 的默认应用页面。</p><p id="association-status" role="status" aria-live="polite"></p><div id="association-formats"></div><div class="association-tools"><button id="btn-association-all">全选</button><button id="btn-association-none">全不选</button></div><div class="dialog-actions"><button id="btn-association-defaults">设置 vw 为默认应用…</button><button id="btn-association-cancel">关闭</button><button id="btn-association-save" class="primary">保存</button></div></dialog>
   <dialog id="appearance-dialog" aria-labelledby="appearance-title"><h2 id="appearance-title">外观设置</h2><fieldset class="theme-options"><legend>颜色模式</legend><label><input type="radio" name="theme-mode" value="system" /> 跟随系统</label><label><input type="radio" name="theme-mode" value="light" /> 日间</label><label><input type="radio" name="theme-mode" value="dark" /> 夜间</label><label><input type="radio" name="theme-mode" value="schedule" /> 按时间</label></fieldset><div id="theme-schedule"><label>夜间开始 <input id="theme-dark-hour" type="time" value="19:00" /></label><label>日间开始 <input id="theme-light-hour" type="time" value="07:00" /></label></div><fieldset class="document-options"><legend>阅读字体</legend><label>字体 <select id="document-font-family"><option value="system">系统无衬线</option><option value="serif">衬线字体</option><option value="mono">等宽字体</option></select></label><label>字号 <input id="document-font-size" type="range" min="12" max="28" step="1" value="15" /><output id="document-font-size-value">15 px</output></label></fieldset><form method="dialog" class="dialog-actions"><button>关闭</button></form></dialog>
   <dialog id="about-dialog" aria-labelledby="about-title"><h2 id="about-title">vw · 文件查看器</h2><p>版本 0.1.0 · 本地文件预览和插件扩展。</p><p>桌面窗口：Tauri（MIT / Apache-2.0）<br />图标：Lucide（ISC / MIT）</p><p>插件中心参考 DBX（Apache-2.0），侧栏参考 VS Code（MIT）。</p><form method="dialog"><button>关闭</button></form></dialog>
+  <script src="vendor/codemirror/codemirror.js"></script>
+<script src="vendor/codemirror/simple.js"></script>
+<script src="vendor/codemirror/meta.js"></script>
+<script src="vendor/codemirror/javascript.js"></script>
+<script src="vendor/codemirror/shell.js"></script>
+<script src="vendor/codemirror/powershell.js"></script>
+<script src="vendor/codemirror/clike.js"></script>
+<script src="vendor/codemirror/python.js"></script>
+<script src="vendor/codemirror/xml.js"></script>
+<script src="vendor/codemirror/css.js"></script>
+<script src="vendor/codemirror/htmlmixed.js"></script>
+<script src="vendor/codemirror/markdown.js"></script>
+<script src="vendor/codemirror/yaml.js"></script>
+<script src="vendor/codemirror/properties.js"></script>
+<script src="vendor/codemirror/sql.js"></script>
+<script src="vendor/codemirror/rust.js"></script>
+<script src="vendor/codemirror/go.js"></script>
+<script src="vendor/codemirror/searchcursor.js"></script>
+<script src="vendor/codemirror/matchbrackets.js"></script>
   <script type="module" src="main.js"></script>
 </body>
 </html>

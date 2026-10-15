@@ -29,6 +29,12 @@ pub trait Viewer: Send + Sync {
 pub trait Doc: Send + Sync {
     fn meta(&self) -> DocMeta;
 
+    fn format_support(&self) -> Option<vw_protocol::FormatSupport> { None }
+
+    fn format_text(&self, _text: &str) -> Result<String, PluginError> {
+        Err(PluginError::unsupported("该插件未提供格式化功能"))
+    }
+
     fn outline(&self) -> Option<Outline> {
         None
     }
@@ -62,6 +68,10 @@ pub trait EditableDoc: Doc {
     fn edit_capability(&self) -> EditCapability;
     fn snapshot(&self) -> Result<EditSnapshot, PluginError>;
     fn serialize(&self, edited: &EditSnapshot) -> Result<Vec<u8>, PluginError>;
+    fn serialize_with_encoding(&self, edited: &EditSnapshot, encoding: Option<&str>) -> Result<Vec<u8>, PluginError> {
+        if encoding.is_some() { return Err(PluginError::unsupported("该插件尚未实现编码转换，请保持原编码")); }
+        self.serialize(edited)
+    }
 }
 
 /// 归档类插件的可选实现：把归档成员**物化**到临时目录，核心随后对物化路径

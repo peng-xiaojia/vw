@@ -4,6 +4,7 @@ mod presentation;
 mod word;
 mod workbook;
 mod xml;
+mod legacy;
 
 use std::path::Path;
 use vw_core::viewer::{Doc, Viewer};
@@ -40,8 +41,8 @@ impl OfficeViewer {
             manifest: Manifest::simple_in_process(
                 "vw.office",
                 "office",
-                &["docx", "xlsx", "pptx"],
-                &["view"],
+                &["doc", "xls", "ppt", "docx", "xlsx", "pptx"],
+                &["view", "outline"],
                 priority,
             ),
             limits,
@@ -63,7 +64,7 @@ impl Viewer for OfficeViewer {
     }
     fn probe(&self, source: &Source) -> Option<ProbeScore> {
         let path = source.as_fs_path()?;
-        (path.is_file() && matches!(extension(path).as_str(), "docx" | "xlsx" | "pptx")).then(
+        (path.is_file() && matches!(extension(path).as_str(), "doc" | "xls" | "ppt" | "docx" | "xlsx" | "pptx")).then(
             || ProbeScore {
                 score: 95,
                 reason: "OOXML Office 扩展名".into(),
@@ -74,6 +75,14 @@ impl Viewer for OfficeViewer {
         let path = source
             .as_fs_path()
             .ok_or_else(|| damaged("只支持本地 OOXML 文件"))?;
+        if matches!(extension(path).as_str(), "doc" | "xls" | "ppt") {
+            return Ok(Box::new(OfficeDoc {
+                blocks: legacy::parse(path, self.limits)?,
+                title: path.file_name().map(|s| s.to_string_lossy().into()),
+                size: std::fs::metadata(path)?.len(),
+                mime: match extension(path).as_str() { "doc" => "application/msword", "xls" => "application/vnd.ms-excel", _ => "application/vnd.ms-powerpoint" }.into(),
+            }));
+        }
         let mut package = package::Package::open(path, self.limits)?;
         let (blocks, mime) = match extension(path).as_str() {
             "docx" => (

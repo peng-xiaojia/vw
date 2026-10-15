@@ -2,4 +2,5 @@
 **/target/
 /dist/
 /output/playwright/
+/app/ui/plugin-assets/
 /.cargo/config.toml

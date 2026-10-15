@@ -91,3 +91,12 @@ pub struct OpenOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub as_viewer: Option<String>,
 }
+
+/// Plugin-owned formatter descriptor. `rpc` invokes Doc::format_text; the built-in
+/// `prettier` provider runs the bundled formatter in the frontend worker.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FormatSupport {
+    pub provider: String,
+    #[serde(default)]
+    pub parser: Option<String>,
+}

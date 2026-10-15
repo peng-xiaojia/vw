@@ -288,6 +288,7 @@ impl Viewer for HostViewer {
             _temp: temp,
             closed: AtomicBool::new(false),
             cfg: self.cfg.clone(),
+            formats: self.manifest.capabilities_of(&meta.viewer).iter().any(|c| c == "format"),
             meta,
             capability: OnceLock::new(),
         }))
@@ -303,6 +304,7 @@ struct HostDoc {
     cfg: HostConfig,
     meta: DocMeta,
     capability: OnceLock<EditCapability>,
+    formats: bool,
 }
 
 impl HostDoc {
@@ -337,6 +339,13 @@ impl HostDoc {
 }
 
 impl Doc for HostDoc {
+    fn format_support(&self) -> Option<vw_protocol::FormatSupport> {
+        self.formats.then(|| vw_protocol::FormatSupport { provider: "rpc".into(), parser: None })
+    }
+    fn format_text(&self, text: &str) -> Result<String, PluginError> {
+        if !self.formats { return Err(PluginError::unsupported("插件未注册格式化能力")); }
+        serde_json::from_value(self.request("format", serde_json::json!({ "handle": self.handle, "text": text }))?).map_err(PluginError::from)
+    }
     fn meta(&self) -> DocMeta {
         self.meta.clone()
     }

@@ -159,7 +159,7 @@ button.primary { color: #fff; background: var(--accent); border-color: var(--acc
 
 /* The window chrome and command menu share a single compact row. */
 #toolbar { flex: 0 0 40px; height: 40px; padding: 0 0 0 12px; flex-wrap: nowrap; gap: 8px; background: #f8f9fb; user-select: none; position: relative; z-index: 10; }
-.app-name { font-weight: 650; color: var(--accent); }
+.app-name { font-weight: 650; color: var(--accent); display: inline-flex; align-items: center; gap: 6px; }
 #top-menu { display: flex; align-items: stretch; height: 100%; gap: 1px; }
 .top-menu { position: relative; height: 100%; }
 .top-menu > summary { display: flex; align-items: center; height: 100%; padding: 0 10px; cursor: pointer; list-style: none; border-radius: 0; }
@@ -169,7 +169,7 @@ button.primary { color: #fff; background: var(--accent); border-color: var(--acc
 .menu-popup button { display: flex; justify-content: space-between; align-items: center; gap: 18px; width: 100%; border: 0; border-radius: 3px; background: transparent; padding: 6px 10px; text-align: left; font-size: 13px; }
 .menu-popup button .menu-label { flex: 1; text-align: left; }
 .menu-popup button img { width: 16px; height: 16px; flex: 0 0 auto; }
-.app-logo { width: 18px; height: 18px; border-radius: 4px; }
+.app-logo { width: 20px; height: 20px; border-radius: 5px; display: block; }
 .menu-popup button:hover:not(:disabled), .menu-popup button:focus-visible { background: #e7f0ff; }
 .menu-popup hr { border: 0; border-top: 1px solid var(--line); margin: 5px 3px; }
 .menu-popup kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); white-space: nowrap; }
